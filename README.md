@@ -6,15 +6,15 @@
 
 ## Environment Parameters
 
-`HELLO_MOCK_ISSUER` - the issuer URL the mock server is acting as. Defaults to http://localhost
-`HELLO_MOCK_PORT` - the port the server listens on. Defaults to 8080
-`HELLO_MOCK_CLIENT_ID` - if provided, the mock server will only accept this as a valid client_id. If not set, any client_id value passed is valid
-`HELLO_MOCK_CLIENT_SECRET` - if provided, the mock server will only accept this as a valid client_secret. If not set, any value is valid.
-`HELLO_MOCK_REDIRECT_URI` - if provided, the mock server will accept this as a valid redirect_uri. If not set, any redirect_uri value passed is valid
+- `HELLO_MOCK_ISSUER` - the issuer URL the mock server is acting as. Defaults to http://localhost
+- `HELLO_MOCK_PORT` - the port the server listens on. Defaults to 8080
+- `HELLO_MOCK_CLIENT_ID` - if provided, the mock server will only accept this as a valid client_id. If not set, any client_id value passed is valid
+- `HELLO_MOCK_CLIENT_SECRET` - if provided, the mock server will only accept this as a valid client_secret. If not set, any value is valid.
+- `HELLO_MOCK_REDIRECT_URI` - if provided, the mock server will accept this as a valid redirect_uri. If not set, any redirect_uri value passed is valid
 
 ### Internal
 
-`HELLO_MOCK_OAUTH` - if set, the mock server will accept an OAuth flow to generate access tokens to the console server. Valid parameters are `console` and `quickstart`
+- `HELLO_MOCK_OAUTH` - if set, the mock server will accept an OAuth flow to generate access tokens to the console server. Valid parameters are `console` and `quickstart`
 
 ## Endpoints
 
