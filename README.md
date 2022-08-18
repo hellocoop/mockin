@@ -30,8 +30,8 @@ which defines the following endpoints
     
  # Another mocking signal
  
- /mock?fixture=JSON
-    
+ POST /mock JSON fixture file
+ 
   ????
 
 ## OIDC Flows
