@@ -30,7 +30,7 @@ which defines the following endpoints
     
  # Another mocking signal
  
- /mock?value=<fixture name>
+ /mock?fixture=JSON
     
   ????
 
