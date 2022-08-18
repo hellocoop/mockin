@@ -1,30 +1,35 @@
 # mock server
 
-Mock Hellō server for development coming soon!
+- intro
+- info on https://mock.hello.dev
+- Docker Hub image
+
+## Environment Parameters
+
+`HELLO_MOCK_HOST` - where the mock server is running, which is also the issuer URL
 
 ## Endpoints
 
-### /authorize
+    /.well-known/openid-configuration
 
-authorization point for both OAuth and OIDC flows
+which defines the following endpoints
 
-### /oauth/token
+    /authorize
+    /oauth/token
+    /oauth/introspection
+    /oauth/userinfo
+    /jwks
 
-returns ID token and access token if OIDC flow, access token if OAuth flow
+## OIDC 
 
-### /oauth/introspection
+## Fixtures
 
-verifies ID Token and returns payload
+Folder containing responses 
 
-### /oauth/userinfo
+## Mocking different users
 
-returns same payload as the ID Token
+`fixture/default.json` is the default user profile
 
-### /.well-known/openid-configuration
+passing an extra parameter of `mock=user1` would return the user profile in `fixture/user1.json`
 
-Returns an openid-configuation JSON file
-All URLs use hostname that server is running on
-
-### jwks endpoint
-
-A jwks endpoint per the OIDC configuration file that returns the jwks file
+## Contributions
