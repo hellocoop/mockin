@@ -1,0 +1,10 @@
+{
+    "name": "John Smith",
+    "nickname": "Jack",
+    "given_name": "John",
+    "family_name": "Smith",
+    "picture": "https://cdn.hello.coop/mock/portrait-of-john-smith.jpeg",
+    "email": "john.smith@example.com",
+    "phone": "+19875550123",
+    "ethereum": "0x346eaF3AbbA8696f4B64739D8Ff55e8749f5c638"
+}
