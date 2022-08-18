@@ -33,6 +33,12 @@ which defines the following endpoints
  POST /mock JSON fixture file
  
   ????
+  
+``` json
+{
+    "error":"AUD_ERROR"
+}
+
 
 ## OIDC Flows
 
