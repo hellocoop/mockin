@@ -27,6 +27,12 @@ which defines the following endpoints
     /oauth/introspection
     /oauth/userinfo
     /jwks
+    
+ # Another mocking signal
+ 
+ /mock?value=<fixture name>
+    
+  ????
 
 ## OIDC Flows
 
