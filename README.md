@@ -38,7 +38,7 @@ which defines the following endpoints
 {
     "error":"AUD_ERROR"
 }
-
+```
 
 ## OIDC Flows
 
