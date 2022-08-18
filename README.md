@@ -28,8 +28,9 @@ which defines the following endpoints
     /oauth/userinfo
     /jwks
 
-## OIDC 
+## OIDC Flows
 
+The mock server supports `id_token` and `code` response types (flows) per the openid-configuration
 
 ## Mock Responses
 

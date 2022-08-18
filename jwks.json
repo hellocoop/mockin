@@ -1,8 +1,10 @@
 {
-    "kty": "RSA",
-    "e": "AQAB",
-    "use": "sig",
-    "kid": "mock",
-    "alg": "RS256",
-    "n": "0LZSLDaTJ9lnBmieMtpXBYLcX7yyMeuvI9wB3PpMwBv_SjXKlSvytX9ZVMHi9JiBVuweyHtYenT31HcflQogUhtY_uEixqmk2LobWjsccbUbrd-Wfttw5qSxjR7I5dgZNV8PWIsxetZT5tLdMTXRwLuUpA2rZEYHxIOaPqKbTRY8QuL-fTSRkpN-kZNNCjK6EmzTsbsWmwcon8vzh_REE2W5DDjQDrLaby7rwFwgM8LSTJrPjonPgnZBprwFlJXhS1XGC2YJaRd3W0OZAf99_jM28E1HP5-J-iElIBpt4cj1lOZD5Gx1yM9Y2bpjBhItv642zzyRemqcKhFa3J_bQQ"
+    "keys": [ {    
+        "key_ops": ["verify"],
+        "kty": "RSA",
+        "e": "AQAB",
+        "kid": "mock",
+        "alg": "RS256",
+        "n": "0LZSLDaTJ9lnBmieMtpXBYLcX7yyMeuvI9wB3PpMwBv_SjXKlSvytX9ZVMHi9JiBVuweyHtYenT31HcflQogUhtY_uEixqmk2LobWjsccbUbrd-Wfttw5qSxjR7I5dgZNV8PWIsxetZT5tLdMTXRwLuUpA2rZEYHxIOaPqKbTRY8QuL-fTSRkpN-kZNNCjK6EmzTsbsWmwcon8vzh_REE2W5DDjQDrLaby7rwFwgM8LSTJrPjonPgnZBprwFlJXhS1XGC2YJaRd3W0OZAf99_jM28E1HP5-J-iElIBpt4cj1lOZD5Gx1yM9Y2bpjBhItv642zzyRemqcKhFa3J_bQQ"
+    } ]
 }
