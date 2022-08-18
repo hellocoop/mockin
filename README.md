@@ -6,11 +6,15 @@
 
 ## Environment Parameters
 
-`HELLO_MOCK_ISSUER` - where the mock server is running include the port if not running on 80 for HTTP or 443 for HTTPS
-`HELLO_MOCK_CLIENT_ID` - if set, mock server will only accept this as the client_id value
-`HELLO_MOCK_REDIRECT_URI` - if set, the mock server will only redirect to this redirect_uri
-`HELLO_MOCK_OAUTH` - quickstart or 
+`HELLO_MOCK_ISSUER` - the issuer URL the mock server is acting as. Defaults to http://localhost
+`HELLO_MOCK_PORT` - the port the server listens on. Defaults to 8080
+`HELLO_MOCK_CLIENT_ID` - if provided, the mock server will only accept this as a valid client_id. If not set, any client_id value passed is valid
+`HELLO_MOCK_CLIENT_SECRET` - if provided, the mock server will only accept this as a valid client_secret. If not set, any value is valid.
+`HELLO_MOCK_REDIRECT_URI` - if provided, the mock server will accept this as a valid redirect_uri. If not set, any redirect_uri value passed is valid
 
+### Internal
+
+`HELLO_MOCK_OAUTH` - if set, the mock server will accept an OAuth flow to generate access tokens to the console server. Valid parameters are `console` and `quickstart`
 
 ## Endpoints
 
@@ -50,3 +54,7 @@ TBD: describe how to do that with the Docker Image
     INVALID_JWT_HEADER
     INVALID_JWT_PAYLOAD
     503_ERROR
+
+### Limitations
+
+As the mock server stores state in memory, only one instance should be run in an environment.
