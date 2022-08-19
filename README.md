@@ -30,7 +30,7 @@ which defines the following endpoints
     
  # Another mocking signal
  
- POST /mock JSON fixture file
+ PUT /mock JSON fixture file
  
   ????
   
