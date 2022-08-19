@@ -28,17 +28,15 @@ which defines the following endpoints
     /oauth/userinfo
     /jwks
     
- # Another mocking signal
+ ### Changing mock respnse
  
- PUT /mock JSON fixture file
  
-  ????
+ `PUT /mock` JSON fixture file
+ 
+ or
+ 
+ `PUT /mock?error=AUD_ERROR`
   
-``` json
-{
-    "error":"AUD_ERROR"
-}
-```
 
 ## OIDC Flows
 
@@ -59,6 +57,8 @@ add other files to the `fixtures` folder for other responses
 TBD: describe how to do that with the Docker Image
 
 ### Errors
+
+    USER_CANCEL
 
     AUD_ERROR
     ISS_ERROR
