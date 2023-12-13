@@ -4,10 +4,98 @@
 - < info on https://mock.hello.dev - can use https://playground.hello.dev to test out >
 - < Docker Hub image >
 
+## Defaults
+
+### client
+- any id and redirect URI is accepted
+
+### token
+```json
+header
+{
+
+}
+payload
+{
+    
+}
+```
+
+### set
+
+```json
+header
+{
+
+}
+payload
+{
+
+}
+```
+
+
+
+## Mock API
+
+PUT /mock/authorize 
+    ?error=
+    ?wildcard_domain=
+    ?state=
+DELETE /mock/authorize
+
+PUT /mock/oauth/token
+    ?status= 
+    ?error= 
+DELETE /mock/oauth/token
+
+PUT /mock/oauth/introspection
+    ?status= 
+    ?error= 
+DELETE /mock/oauth/introspection
+
+PUT /mock/oauth/userinfo
+    ?status= 
+    ?error= 
+DELETE /mock/oauth/userinfo
+
+PUT /mock/token
+        ?wrong_key
+        ?invalid_key
+        ?wrong_alg
+    { 
+        header
+        payload
+            value: false - will not be returned
+    }
+DELETE /mock/token
+
+PUT /mock/user
+    // shorthand for /mock/token {payload}
+DELETE /mock/user
+
+PUT /mock/invite
+    ?error
+DELETE /mock/invite
+
+PUT /mock/set
+    {
+        header
+        payload
+    }
+DELETE /mock/set
+
+## Sample Test Suite
+
+
+
 ## Environment Parameters
 
-- `HELLO_MOCK_ISSUER` - the issuer URL the mock server is acting as. Defaults to http://localhost
+- `HELLO_MOCK_ISSUER` - the issuer URL the mock server is acting as. Defaults to http://localhost (cannot be `https://issuer.hello.coop` or `https://wallet.hello.coop`)
 - `HELLO_MOCK_PORT` - the port the server listens on. Defaults to 8080
+
+- `SEC_EVENT`
+
 - `HELLO_MOCK_CLIENT_ID` - if provided, the mock server will only accept this as a valid client_id. If not set, any client_id value passed is valid
 - `HELLO_MOCK_CLIENT_SECRET` - if provided, the mock server will only accept this as a valid client_secret. If not set, any value is valid.
 - `HELLO_MOCK_REDIRECT_URI` - if provided, the mock server will accept this as a valid redirect_uri. If not set, any redirect_uri value passed is valid
@@ -28,7 +116,7 @@ which defines the following endpoints
     /oauth/userinfo
     /jwks
     
- ### Changing mock respnse
+ ### Changing mock response
  
  
  `PUT /mock` JSON fixture file
@@ -71,3 +159,19 @@ TBD: describe how to do that with the Docker Image
 ### Limitations
 
 As the mock server stores state in memory, only one instance should be run in an environment.
+
+# Alternative Mock Servers
+
+## Duende Software 
+Free for personal use only
+https://github.com/Soluto/oidc-server-mock
+
+## MockOIDC
+https://github.com/oauth2-proxy/mockoidc
+
+## Xpirit Writeup
+https://xpirit.com/mock-your-openid-connect-provider/
+
+## Wire Mock
+Freemium Service
+https://docs.wiremock.io/oauth2-mock/
