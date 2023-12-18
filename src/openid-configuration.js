@@ -1,10 +1,12 @@
-{
-    "authorization_endpoint": "$ISSUER/authorize",
-    "issuer": "$ISSUER",
-    "jwks_uri": "$ISSUER/jwks",
-    "introspection_endpoint": "$ISSUER/oauth/introspect",
-    "token_endpoint": "$ISSUER/oauth/token",
-    "userinfo_endpoint": "$ISSUER/oauth/userinfo",
+import { ISSUER } from './config'
+
+export default () => { return(`{
+    "authorization_endpoint": "${ISSUER}/authorize",
+    "issuer": "${ISSUER}",
+    "jwks_uri": "${ISSUER}/jwks",
+    "introspection_endpoint": "${ISSUER}/oauth/introspect",
+    "token_endpoint": "${ISSUER}/oauth/token",
+    "userinfo_endpoint": "${ISSUER}/oauth/userinfo",
     "response_modes_supported": [
         "query",
         "fragment",
@@ -61,4 +63,4 @@
         "phone_verified",
         "ethereum"
     ]
-}
+}`)}

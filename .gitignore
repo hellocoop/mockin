@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+node_modules
+*.p8
+.env
+*.code-workspace
+dist
+*.log
+*.taskdefinition.json
