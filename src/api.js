@@ -1,7 +1,5 @@
 // Mock API 
 
-import { ISSUER } from './config.js'
-import { randomUUID } from 'crypto'
 import authorize from './authorize.js'
 import mock from './mock.js'
 import { token, introspect, userinfo, wellknown, jwks } from './oauth.js'
@@ -19,18 +17,23 @@ const noCache = async (req, res) => {
     res.header('Pragma', 'no-cache')
 }
 
-
 export default function (fastify) {      
     fastify.get('/authorize', authorize)
-    fastify.get('/mock', mock)
-    fastify.post('/mock/:mock', mock)
-// complete 
-    fastify,options('/*', cors)
     fastify.post('/oauth/token', token)
     fastify.post('/oauth/introspect', introspect)
     fastify.post('/oauth/userinfo', userinfo)
     fastify.get('/oauth/userinfo', noCache, userinfo)
     fastify.get('/.well-known/openid-configuration', wellknown)
     fastify.get('/jwks', jwks)
+    //mock config
+    fastify.get('/mock', mock.get)
+    fastify.delete('/mock',mock.delete)
+    fastify.put('/mock/user/:user',mock.put)
+    fastify.put('/mock/oauth/:mock',mock.put)
+    fastify.delete('/mock/oauth/:mock',mock.delete)
+    fastify.put('/mock/:mock', mock.put)
+    fastify.delete('/mock/:mock', mock.delete)
+    // CORS
+    fastify,options('/*', cors)
     return fastify    
 }

@@ -1,5 +1,5 @@
 
-const fixtures = [{
+const users = [{
     "sub": "00000000-0000-0000-0000-00000000",
     "name": "John Smith",
     "nickname": "Jack",
@@ -80,4 +80,5 @@ const fixtures = [{
     }
 }]
 
-export default fixtures
+export default users[0]
+export {users}
