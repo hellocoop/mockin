@@ -8,19 +8,20 @@ import MOCK from './mock.js'
 
 export const codes = {}
 
-const validResponseTypes = new Set(
+const validResponseTypes = new Set([
     'code',
     'id_token',
-)
+])
 
-const validResponseModes = new Set(
+const validResponseModes = new Set([
     'query',
     'fragment',
     'form_post',
-)
+])
 
 // user[0] claims define the valid scopes
-const validScopes = (new Set(['openid'],...Object.keys(defaultUser))).delete('sub')
+const validScopes = new Set([...['openid'],...Object.keys(defaultUser)])
+validScopes.delete('sub')
 
 const sendResponse = ( res, type, redirect_uri, params ) => {
     if (type === 'query') {
@@ -87,7 +88,9 @@ const authorize = async ( req, res ) => {
     const sendInvalidRequest = (error_description) => {
         sendResponse(res, response_mode, redirect_uri, {...params, error:'invalid_request', error_description})
     }
-    if ((!response_type || !validResponseTypes.has(response_type)))
+    if (!response_type)
+        return sendInvalidRequest('response_type is required')
+    if (!validResponseTypes.has(response_type))
         return sendInvalidRequest('unknown response_type')
     if (!client_id) 
         return sendInvalidRequest('missing client_id')

@@ -8,6 +8,7 @@ import { users } from './users.js'
 import { randomUUID } from 'crypto'
 import { ISSUER } from './config.js'
 import sign from './sign.js'
+import verify from './verify.js'
 import { codes } from './authorize.js'
 
 const oauthErrorStatusCodes = {

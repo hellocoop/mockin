@@ -12,7 +12,7 @@ jwks.keys.forEach( jwk => {
     pems[jwk.kid] = jwkToPem(jwk)
 })
 
-verify = async function (token, audience, nonce) {
+const verify = async function (token, audience, nonce) {
     if (!token) return({error:'token_required'})
     if (!audience) return({error:'client_id_required'})
     const options = {
