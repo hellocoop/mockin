@@ -139,10 +139,6 @@ const authorize = async ( req, res ) => {
         scopes.push('phone_verified')
         claims.phone_verified = true
     }
-
-console.log('scopes',scopes)
-console.log('claims',claims)
-
     const id_payload = {
         iss: ISSUER,
         aud: client_id,
@@ -153,9 +149,6 @@ console.log('claims',claims)
         scope: scopes.join(' '),
         ...claims,
     }
-
-console.log('id_payload',id_payload)
-
     const id_token = await sign(id_payload, MOCK?.token?.options, MOCK?.token?.wrongKey)
     if (id_token instanceof Error)
         return res.status(500).send({error:id_token.message})
