@@ -61,7 +61,7 @@ export const token = async ( req, res ) => {
     if (!request.code_challenge && code_verifier)
         return res.status(400).send({error:'invalid_request'})
 
-    const verifiedChallenge = await verifyChallenge(code_verifier, query.code_challenge)
+    const verifiedChallenge = await verifyChallenge(code_verifier, request.code_challenge)
     if (!verifiedChallenge)
         return res.status(400).send({error:'invalid_grant'})
 
@@ -71,35 +71,11 @@ export const token = async ( req, res ) => {
     if (token?.error)
         return res.status(oauthErrorStatusCodes[token.error] || 400).send({error:token.error})
 
-    const id_payload = {
-        iss: ISSUER,
-        aud: request.client_id,
-        nonce: request.nonce,
-        jto: randomUUID(),
-        iat: Math.floor(Date.now()/1000),
-        ...users[0],
-        ...token.payload || {}, 
-    }
-    const id_token = await sign(id_payload, token.options, token.wrongKey)
-    if (id_token instanceof Error)
-        return res.status(500).send({error:id_token.message})
-
-    const access_payload = {
-        iss: ISSUER,
-        aud: ISSUER,
-        iat: Math.floor(Date.now()/1000),
-        ...users[0],
-        ...token.payload || {}, 
-    }
-    const access_token = await sign(access_payload, token.options, token.wrongKey)
-    if (access_token instanceof Error)
-        return res.status(500).send({error:access_token.message})
-
     res.header('Content-Type', 'application/json')
     res.send({
         token_type: 'Bearer',
-        id_token,
-        access_token,
+        id_token: request.id_token,
+        access_token: request.access_token,
     })
     return res
 }
@@ -134,7 +110,7 @@ export const userinfo = async function ( req, reply ) {
         return reply.code(400).send({error:'invalid_request',error_description:'no access token found'})
     const token = req.headers.authorization.split(' ')[1]
 
-    const payload = await verify(token,'consent')
+    const payload = await verify(token,ISSUER)
 
     if (payload instanceof Error) {
         return reply.code(401).send({error:'invalid_token',error_description:payload.message})
@@ -142,9 +118,9 @@ export const userinfo = async function ( req, reply ) {
     const userinfo = {
         iss: payload.iss,
         sub: payload.sub,
-        aud: payload.aud
     }
-    for (const scope of payload.scope) {
+    for (const scope of payload.scope.split(' ')) {
+        if (scope === 'openid') continue
         userinfo[scope] = payload[scope]
     }
     return reply.send(userinfo)
