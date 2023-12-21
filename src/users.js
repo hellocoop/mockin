@@ -81,4 +81,4 @@ const users = [{
 }]
 
 export default users[0]
-export {users}
+export { users }

@@ -16,6 +16,7 @@ export default function (fastify) {
     fastify.get('/jwks', oauth.jwks)
     //mock config
     fastify.get('/mock', mock.get)
+    fastify.get('/mock/users', mock.users)
     fastify.delete('/mock', mock.delete)
     fastify.put('/mock/user/:user', mock.put)
     fastify.put('/mock/oauth/:mock', mock.put)

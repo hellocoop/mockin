@@ -1,6 +1,8 @@
 // mock.js
 
-const { users } = import('./users.js')
+const { users } = await import('./users.js')
+
+console.log('mock.js', {users})
 
 let MOCK = {}
 export default MOCK
@@ -43,6 +45,13 @@ const validErrors = new Set([
 export const get = async ( req, res ) => {
     return res.send({MOCK})
 }
+
+const getUsers = async ( req, res ) => {
+    console.log('mock.js', {users})
+    return res.send({users})
+}
+export { getUsers as users }
+
 
 export const put = async ( req, res ) => {
     const mock = req.params?.mock
