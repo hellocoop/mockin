@@ -2,6 +2,7 @@
 
 import fastify from 'fastify'
 import fastifyFormbody from '@fastify/formbody'
+import cors from '@fastify/cors'
 
 import api from './api.js';
 
@@ -17,7 +18,9 @@ const mockin = fastify({
       base: undefined,
     }
   })
+  
 mockin.register(fastifyFormbody)
+mockin.register(cors)
 
 api(mockin)   
 
