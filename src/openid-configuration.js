@@ -1,4 +1,4 @@
-import { ISSUER } from './config'
+import { ISSUER } from './config.js'
 
 export default () => { return(`{
     "authorization_endpoint": "${ISSUER}/authorize",

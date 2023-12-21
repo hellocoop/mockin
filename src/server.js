@@ -1,13 +1,15 @@
 // server.js
 
 import fastify from 'fastify'
+import fastifyFormbody from '@fastify/formbody'
+
 import api from './api.js';
 
 import { PORT, IP } from './config.js'
 
 // mock server
 
-const fastify = fastify({
+const mockin = fastify({
     disableRequestLogging: true,
     logger: {
       level: 'error',
@@ -15,12 +17,13 @@ const fastify = fastify({
       base: undefined,
     }
   })
+mockin.register(fastifyFormbody)
 
-api(fastify)   
+api(mockin)   
 
-fastify.listen({port: PORT, host: IP})
-    .then((address) => fastify.log.warn(`Mock server listening on ${address}`))
+mockin.listen({port: PORT, host: IP})
+    .then((address) => console.log(`Mock server listening on ${address}`))
     .catch((err) => {
-        fastify.log.error(err)
+      mockin.log.error(err)
         process.exit(1)
     })

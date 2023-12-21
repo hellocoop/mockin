@@ -103,15 +103,52 @@ export const token = async ( req, res ) => {
     return res
 }
 
-export const introspect = async ( req, res ) => {
-    // TODO check valid call
 
+export const introspect = async function ( req, reply ) {
+    const token = req.body?.token || req.body?.id_token
+    const client_id = req.body?.client_id || req.body?.audience
+    if (!token) return reply.status(400).send({error:'invalid_request',error_description:'"token" is required'})
+    if (!client_id) return reply.status(400).send({error:'invalid_request',error_description:'"client_id" is required'})
+    const {introspect} = MOCK
+    if (introspect?.status || introspect?.error)
+        return reply.status(introspect?.status || 200).send({error:introspect?.error})
+    const payload = await verify( token, client_id, req.body?.nonce )
+    if (payload instanceof Error) {
+        reply.log.error(payload)
+        return reply.send({active:false})
+    }
+    return reply.send(payload)
 }
 
-export const userinfo = async ( req, res ) => {
-    // TODO check valid call
+export const userinfo = async function ( req, reply ) {
+    reply.headers({
+        'Cache-Control':	            'no-store',
+        'Pragma':	                    'no-cache',
+        'Access-Control-Allow-Origin':  req.headers.origin,
+        'Access-Control-Allow-Methods': 'GET, POST',          
+    }) // both POST and GET methods are allowed
 
+
+    if (!req.headers.authorization || req.headers.authorization.indexOf('Bearer ') === -1)
+        return reply.code(400).send({error:'invalid_request',error_description:'no access token found'})
+    const token = req.headers.authorization.split(' ')[1]
+
+    const payload = await verify(token,'consent')
+
+    if (payload instanceof Error) {
+        return reply.code(401).send({error:'invalid_token',error_description:payload.message})
+    }
+    const userinfo = {
+        iss: payload.iss,
+        sub: payload.sub,
+        aud: payload.aud
+    }
+    for (const scope of payload.scope) {
+        userinfo[scope] = payload[scope]
+    }
+    return reply.send(userinfo)
 }
+
 
 export const wellknown = async ( req, res ) => {
     res.header('Content-Type', 'application/json')

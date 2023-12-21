@@ -20,7 +20,7 @@ const validResponseModes = new Set(
 )
 
 // user[0] claims define the valid scopes
-const validScopes = (new Set('openid',...Object.keys(defaultUser))).remove('sub')
+const validScopes = (new Set(['openid'],...Object.keys(defaultUser))).delete('sub')
 
 const sendResponse = ( res, type, redirect_uri, params ) => {
     if (type === 'query') {

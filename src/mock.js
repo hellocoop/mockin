@@ -5,17 +5,16 @@ const { users } = import('./users.js')
 let MOCK = {}
 export default MOCK
 
-
-const validMocks = new Set(
+const validMocks = new Set([
     'authorize',
     'introspection',
     'invite',
     'token',
     'user',
     'userinfo',
-)
+])
 
-const validStatus = new SET(
+const validStatus = new Set([
     200,
     202,
     400,
@@ -25,10 +24,9 @@ const validStatus = new SET(
     405,
     500,
     503,
-    // TODO get correct codes
-)
+])
 
-const validErrors = new SET(
+const validErrors = new Set([
     'access_denied',
     'invalid_client',
     'invalid_grant',
@@ -40,7 +38,7 @@ const validErrors = new SET(
     'unauthorized_client',
     'unsupported_grant_type',
     'unsupported_response_type',
-)
+])
 
 export const get = async ( req, res ) => {
     return res.send({MOCK})

@@ -1,8 +1,8 @@
 // Mock API 
 
 import authorize from './authorize.js'
-import mock from './mock.js'
-import { token, introspect, userinfo, wellknown, jwks } from './oauth.js'
+import * as mock from './mock.js'
+import * as oauth from './oauth.js'
 
 const cors = async (req, res) => {
     res.header('Access-Control-Allow-Origin', '*')
@@ -12,19 +12,17 @@ const cors = async (req, res) => {
     res.send(200)
 }
 
-const noCache = async (req, res) => {
-    res.header('Cache-Control', 'no-store')
-    res.header('Pragma', 'no-cache')
-}
 
 export default function (fastify) {      
     fastify.get('/authorize', authorize)
-    fastify.post('/oauth/token', token)
-    fastify.post('/oauth/introspect', introspect)
-    fastify.post('/oauth/userinfo', userinfo)
-    fastify.get('/oauth/userinfo', noCache, userinfo)
-    fastify.get('/.well-known/openid-configuration', wellknown)
-    fastify.get('/jwks', jwks)
+
+    fastify.post('/oauth/token', oauth.token)
+    fastify.post('/oauth/introspect', oauth.introspect)
+    fastify.get('/oauth/userinfo', oauth.userinfo)
+    fastify.post('/oauth/userinfo', oauth.userinfo)
+    
+    fastify.get('/.well-known/openid-configuration', oauth.wellknown)
+    fastify.get('/jwks', oauth.jwks)
     //mock config
     fastify.get('/mock', mock.get)
     fastify.delete('/mock',mock.delete)
@@ -34,6 +32,6 @@ export default function (fastify) {
     fastify.put('/mock/:mock', mock.put)
     fastify.delete('/mock/:mock', mock.delete)
     // CORS
-    fastify,options('/*', cors)
+    fastify.options('/*', cors)
     return fastify    
 }
