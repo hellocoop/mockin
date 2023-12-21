@@ -113,12 +113,9 @@ const authorize = async ( req, res ) => {
         return sendInvalidRequest('code_challenge is not allowed for id_token response_type')
     if (response_type === 'code' && !code_challenge)
         return sendInvalidRequest('code_challenge is required for code response_type')
-    if (code_challenge) {
-        if (!code_challenge_method)
-            return sendInvalidRequest('missing code_challenge_method')
-        if (code_challenge_method != 'S256')
-            return sendInvalidRequest('only S256 code_challenge_method is supported')
-    }
+    if (code_challenge_method && code_challenge_method != 'S256')
+        return sendInvalidRequest('only S256 code_challenge_method is supported')
+
 
     // we got a valid request -- check if we are to mock an error
     if (MOCK.authorize?.error) 
@@ -126,7 +123,14 @@ const authorize = async ( req, res ) => {
 
     // all good -- let's mint a mocked id_token
 
+
+
+    const userClaims = {...defaultUser, ...MOCK.claims || {}}
     const claims = {}
+    claims.sub = userClaims.sub
+    scopes.forEach(scope => { 
+        if (scope !== 'openid') claims[scope] = userClaims[scope]
+    })
     if (scopesSet.has('email')) {
         scopes.push('email_verified')
         claims.email_verified = true
@@ -135,9 +139,10 @@ const authorize = async ( req, res ) => {
         scopes.push('phone_verified')
         claims.phone_verified = true
     }
-    const userClaims = {...defaultUser, ...MOCK.claims || {}}
-    claims.sub = userClaims.sub
-    scopes.forEach(scope => claims[scope] = userClaims[scope])
+
+console.log('scopes',scopes)
+console.log('claims',claims)
+
     const id_payload = {
         iss: ISSUER,
         aud: client_id,
@@ -148,6 +153,9 @@ const authorize = async ( req, res ) => {
         scope: scopes.join(' '),
         ...claims,
     }
+
+console.log('id_payload',id_payload)
+
     const id_token = await sign(id_payload, MOCK?.token?.options, MOCK?.token?.wrongKey)
     if (id_token instanceof Error)
         return res.status(500).send({error:id_token.message})
@@ -159,13 +167,12 @@ const authorize = async ( req, res ) => {
     // we are sending back a code response 
 
     const access_payload = {
-        iss: ISSUER,
+        ...id_payload,
         aud: ISSUER,
-        iat: Math.floor(Date.now()/1000),
-        ...users[0],
-        ...token.payload || {}, 
     }
-    const access_token = await sign(access_payload, token.options, token.wrongKey)
+    delete access_payload.nonce
+
+    const access_token = await sign(access_payload, MOCK?.token?.options, MOCK?.token?.wrongKey)
     if (access_token instanceof Error)
         return res.status(500).send({error:access_token.message})
 
