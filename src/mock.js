@@ -2,8 +2,6 @@
 
 const { users } = await import('./users.js')
 
-console.log('mock.js', {users})
-
 let MOCK = {}
 export default MOCK
 
@@ -47,7 +45,6 @@ export const get = async ( req, res ) => {
 }
 
 const getUsers = async ( req, res ) => {
-    console.log('mock.js', {users})
     return res.send({users})
 }
 export { getUsers as users }
