@@ -26,7 +26,8 @@
     "pkce-challenge": "^4.0.1"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "build": "docker build -t mockin ."
   },
   "devDependencies": {
     "chai": "^4.3.10",
