@@ -26,11 +26,7 @@
     "pkce-challenge": "^4.0.1"
   },
   "scripts": {
-    "mock": "node --inspect=0.0.0.0 -r dotenv/config mock/server",
-    "dynamodb-reset": "node DB/src/dynamodb-reset.js",
-    "dynamodb-reset:mock": "npm run dynamodb-reset && npm run mock",
-    "wallet": "node -r dotenv/config src/server",
-    "wallet:debug": "node --inspect=0.0.0.0 -r dotenv/config src/server"
+    "test": "mocha"
   },
   "devDependencies": {
     "chai": "^4.3.10",
