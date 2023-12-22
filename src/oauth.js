@@ -61,9 +61,26 @@ export const token = async ( req, res ) => {
     if (!request.code_challenge && code_verifier)
         return res.status(400).send({error:'invalid_request'})
 
-    const verifiedChallenge = await verifyChallenge(code_verifier, request.code_challenge)
-    if (!verifiedChallenge)
-        return res.status(400).send({error:'invalid_grant'})
+    if (request.code_challenge) {
+        const verifiedChallenge = await verifyChallenge(code_verifier, request.code_challenge)
+        if (!verifiedChallenge)
+            return res.status(400).send({error:'invalid_grant'})    
+    } else { // check we got a credential
+        let client_secret = null
+        if (req.headers.authorization && req.headers.authorization.indexOf('Basic ') >= 0) {
+            const base64Credentials =  req.headers.authorization.split(' ')[1]
+            const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii')
+            const [c_id, c_secret] = credentials.split(':')
+            if (c_secret)
+                client_secret = c_secret
+        }
+        if (!client_secret)
+            client_secret = req.body?.client_secret
+        if (!client_secret)
+            return res.status(400).send({error:'invalid_request',error_description:"code_verifier required if unauthenticated client"})
+        if (MOCK.client_secret && MOCK.client_secret !== client_secret)
+            return res.status(401).send({error:'invalid_client',error_description:"invalid client_secret"})
+    }
 
     const { token } = MOCK
     if (token?.status || token?.error)

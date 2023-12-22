@@ -110,9 +110,7 @@ const authorize = async ( req, res ) => {
     if (!scopesSet.has('openid'))
         return sendInvalidRequest('missing openid scope')
     if (response_type === 'id_token' && code_challenge)
-        return sendInvalidRequest('code_challenge is not allowed for id_token response_type')
-    if (response_type === 'code' && !code_challenge)
-        return sendInvalidRequest('code_challenge is required for code response_type')
+        return sendInvalidRequest('code_challenge is invalid for id_token response_type')
     if (code_challenge_method && code_challenge_method != 'S256')
         return sendInvalidRequest('only S256 code_challenge_method is supported')
 

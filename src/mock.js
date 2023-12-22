@@ -12,6 +12,7 @@ const validMocks = new Set([
     'token',
     'user',
     'userinfo',
+    'client_secret',
 ])
 
 const validStatus = new Set([
