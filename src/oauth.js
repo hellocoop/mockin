@@ -4,10 +4,7 @@ import MOCK from './mock.js'
 import openid from './openid-configuration.js'
 import { verifyChallenge } from "pkce-challenge"
 
-import { users } from './users.js'
-import { randomUUID } from 'crypto'
 import { ISSUER } from './config.js'
-import sign from './sign.js'
 import verify from './verify.js'
 import { codes } from './authorize.js'
 
@@ -123,9 +120,13 @@ export const userinfo = async function ( req, reply ) {
     }) // both POST and GET methods are allowed
 
 
-    if (!req.headers.authorization || req.headers.authorization.indexOf('Bearer ') === -1)
-        return reply.code(400).send({error:'invalid_request',error_description:'no access token found'})
+    if (!req.headers.authorization)
+        return reply.code(400).send({error:'invalid_request',error_description:'no authorization header found'})
+    if (req.headers.authorization.indexOf('Bearer ') === -1)
+        return reply.code(400).send({error:'invalid_request',error_description:'"Bearer" found'})
     const token = req.headers.authorization.split(' ')[1]
+    if (!token) 
+        return reply.code(400).send({error:'invalid_request',error_description:'no access token found'})
 
     const payload = await verify(token,ISSUER)
 
@@ -146,7 +147,7 @@ export const userinfo = async function ( req, reply ) {
 
 export const wellknown = async ( req, res ) => {
     res.header('Content-Type', 'application/json')
-    res.send(openid)
+    res.send(openid())
 }
 
 export const jwks = async ( req, res ) => {
