@@ -26,8 +26,11 @@
     "pkce-challenge": "^4.0.1"
   },
   "scripts": {
+    "build": "docker build -t mockin .",
+    "start": "node ./src/server.js",
+    "start:docker": "npm run build && docker run -d -p 3210:3210 mockin",
     "test": "mocha",
-    "build": "docker build -t mockin ."
+    "test:debug": "mocha --inspect"
   },
   "devDependencies": {
     "chai": "^4.3.10",

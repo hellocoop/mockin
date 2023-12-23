@@ -1,8 +1,6 @@
 // server.js
 
 import fastify from 'fastify'
-import fastifyFormbody from '@fastify/formbody'
-import cors from '@fastify/cors'
 
 import api from './api.js';
 
@@ -19,8 +17,6 @@ const mockin = fastify({
     }
   })
   
-mockin.register(fastifyFormbody)
-mockin.register(cors)
 
 api(mockin)   
 
