@@ -18,8 +18,8 @@ const verify = async function (token, audience, nonce) {
     const options = {
         algorithms: ['RS256'],
         issuer: ISSUER,
-        audience: audience,
-        nonce: nonce
+        audience,
+        nonce
     }
     try {
         const {header,payload} = jwt.decode(token,{complete:true})
