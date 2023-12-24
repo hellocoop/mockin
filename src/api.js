@@ -23,7 +23,7 @@ export default function (fastify) {
     fastify.delete('/mock', mock.delete)
     fastify.get('/mock', mock.get)
     fastify.get('/mock/users', mock.users)
-    fastify.put('/mock/user/:user', mock.put)
+    fastify.put('/mock/user/:user', mock.user)
     fastify.put('/mock/oauth/:mock', mock.put)
     fastify.delete('/mock/oauth/:mock', mock.delete)
     fastify.put('/mock/:mock', mock.put)

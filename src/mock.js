@@ -8,12 +8,12 @@ export default mock
 
 const validMocks = new Set([
     'authorize',
-    'introspect',
-    'invite',
-    'token',
-    'user',
-    'userinfo',
+    'claims',
     'client_secret',
+    'introspect',
+    'invite', // future
+    'token',
+    'userinfo',
 ])
 
 const validStatus = new Set([
@@ -71,7 +71,7 @@ export const put = async ( req, res ) => {
         else 
             return res.status(404).send({error:`"${error}" is not a valid error value`})
     }
-    if (req.query)
+    if (req.query && Object.keys(req.query).length)
         MOCK[mock] = {...MOCK[mock], ...req.query}
     if (req.body)
         MOCK[mock] = {...MOCK[mock], ...req.body}
@@ -80,7 +80,7 @@ export const put = async ( req, res ) => {
 
 export const user = async ( req, res ) => {
     const user = Number(req.params.user)
-    if (user !== 0 || user > users.length ) 
+    if (user < 0 || user >= users.length ) 
         return res.status(404).send({error:`"${user}" is not a valid user`})
     MOCK.claims = users[user]
     return res.send({MOCK})
