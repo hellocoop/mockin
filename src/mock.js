@@ -3,11 +3,12 @@
 const { users } = await import('./users.js')
 
 let MOCK = {}
-export default MOCK
+const mock = () => MOCK
+export default mock
 
 const validMocks = new Set([
     'authorize',
-    'introspection',
+    'introspect',
     'invite',
     'token',
     'user',

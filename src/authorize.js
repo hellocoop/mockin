@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { ISSUER } from './config.js'
 import sign from './sign.js'
 import defaultUser from './users.js'
-import MOCK from './mock.js'
+import mock from './mock.js'
 
 export const codes = {}
 
@@ -116,6 +116,7 @@ const authorize = async ( req, res ) => {
 
 
     // we got a valid request -- check if we are to mock an error
+    const MOCK = mock()
     if (MOCK.authorize?.error) 
         return sendResponse(res, response_mode, redirect_uri, {...params, error:MOCK.authorize.error})
 

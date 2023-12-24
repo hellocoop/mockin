@@ -1,6 +1,6 @@
 // oauth.js
 
-import MOCK from './mock.js'
+import mock from './mock.js'
 import openid from './openid-configuration.js'
 import { verifyChallenge } from "pkce-challenge"
 
@@ -26,6 +26,7 @@ const oauthErrorStatusCodes = {
 const JWkS = (await import('./mock.jwks.json', {assert: {type: "json"}})).default
 
 export const token = async ( req, res ) => {
+    const MOCK = mock()
     const code = req.body?.code || req.json?.code
     if (!code)
         return res.status(400).send({error:'invalid_request'})
@@ -58,6 +59,12 @@ export const token = async ( req, res ) => {
     if (!request.code_challenge && code_verifier)
         return res.status(400).send({error:'invalid_request'})
 
+    const { token } = MOCK
+    if (token?.status && token?.error)
+        return res.status(token?.status).send({error:token?.error})
+    if (token?.error)
+        return res.status(oauthErrorStatusCodes[token.error] || 400).send({error:token.error})
+
     if (request.code_challenge) {
         const verifiedChallenge = await verifyChallenge(code_verifier, request.code_challenge)
         if (!verifiedChallenge)
@@ -79,12 +86,6 @@ export const token = async ( req, res ) => {
             return res.status(401).send({error:'invalid_client',error_description:"invalid client_secret"})
     }
 
-    const { token } = MOCK
-    if (token?.status || token?.error)
-        return res.status(token?.status || 200).send({error:token?.error})
-    if (token?.error)
-        return res.status(oauthErrorStatusCodes[token.error] || 400).send({error:token.error})
-
     res.header('Content-Type', 'application/json')
     res.send({
         token_type: 'Bearer',
@@ -100,9 +101,11 @@ export const introspect = async function ( req, reply ) {
     const client_id = req.body?.client_id || req.body?.audience
     if (!token) return reply.status(400).send({error:'invalid_request',error_description:'"token" is required'})
     if (!client_id) return reply.status(400).send({error:'invalid_request',error_description:'"client_id" is required'})
-    const {introspect} = MOCK
+    const {introspect} = mock()
     if (introspect?.status || introspect?.error)
         return reply.status(introspect?.status || 200).send({error:introspect?.error})
+    if (introspect?.active === false)
+        return reply.status(200).send({active:false})
     const payload = await verify( token, client_id, req.body?.nonce )
     if (payload instanceof Error) {
         reply.log.error(payload)
