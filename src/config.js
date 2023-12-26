@@ -10,4 +10,4 @@ if ('https://issuer.hello.coop' === ISSUER.toLowerCase().replace(/\/$/, "")) {
 console.log(`mockin ISSUER: ${ISSUER}`)
 
 export const PORT = env.PORT || 3210
-export const IP = env.IP || '0.0.0.0'
+export const IP = env.IP || '127.0.0.1'

@@ -1,9 +1,9 @@
 // oauth.js
+import { verifyChallenge } from "pkce-challenge"
+import { VALID_IDENTITY_CLAIMS } from '@hellocoop/constants'
 
 import mock from './mock.js'
 import openid from './openid-configuration.js'
-import { verifyChallenge } from "pkce-challenge"
-
 import { ISSUER } from './config.js'
 import verify from './verify.js'
 import { codes } from './authorize.js'
@@ -140,10 +140,9 @@ export const userinfo = async function ( req, reply ) {
         iss: payload.iss,
         sub: payload.sub,
     }
-    for (const scope of payload.scope.split(' ')) {
-        if (scope === 'openid') continue
-        userinfo[scope] = payload[scope]
-    }
+    VALID_IDENTITY_CLAIMS.forEach(claim => {
+        if (payload[claim]) userinfo[claim] = payload[claim]
+    })
     return reply.send(userinfo)
 }
 

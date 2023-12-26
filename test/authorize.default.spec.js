@@ -16,17 +16,18 @@ const client_id = 'client_id-value'
 const nonce = 'nonce-value'
 const redirect_uri = 'https://redirect_uri-value'
 
+const injectAuthToken = {
+    method: 'GET',
+    url: '/authorize?' + new URLSearchParams({
+        client_id,
+        nonce,
+        redirect_uri,
+        response_type: 'id_token',
+        scope: 'openid',
+    })
+}
+
 describe('Default Authorization Tests', function() {
-    const injectAuthToken = {
-        method: 'GET',
-        url: '/authorize?' + new URLSearchParams({
-            client_id,
-            nonce,
-            redirect_uri,
-            response_type: 'id_token',
-            scope: 'openid',
-        })
-    }
     describe('Authorize Endpoint', function() {
         it('should get token', async function() {
             const response = await fastify.inject(injectAuthToken)
@@ -52,12 +53,11 @@ describe('Default Authorization Tests', function() {
             })
             expect(response.statusCode).to.equal(200)
             const data = await response.json()
-            const { iss, aud, sub, nonce: _nonce, scope, active } = data
+            const { iss, aud, sub, nonce: _nonce, active } = data
             expect(iss).to.equal(ISSUER)
             expect(aud).to.equal(client_id)
             expect(sub).to.equal(defaultUser.sub)
             expect(_nonce).to.equal(nonce)
-            expect(scope).to.equal('openid')
             expect(active).to.equal(true)
          })
     })
@@ -165,17 +165,15 @@ describe('Default Authorization Tests', function() {
             const { id_token, access_token } = data
             expect(id_token).to.exist
             expect(access_token).to.exist
-            const { iss, aud, sub, nonce: _nonce, scope } = jwt.decode(id_token)
+            const { iss, aud, sub, nonce: _nonce } = jwt.decode(id_token)
             expect(iss).to.exist
             expect(aud).to.exist
             expect(sub).to.exist
             expect(_nonce).to.exist
-            expect(scope).to.exist
             expect(iss).to.equal(ISSUER)
             expect(aud).to.equal(client_id)
             expect(sub).to.equal(defaultUser.sub)
             expect(_nonce).to.equal(nonce)
-            expect(scope).to.equal('openid')
          })
     })
     describe('UserInfo Endpoint', function() {

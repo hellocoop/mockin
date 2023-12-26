@@ -1,6 +1,7 @@
 // authorize.js
 
 import { randomUUID } from 'crypto'
+import { VALID_RESPONSE_MODE, VALID_RESPONSE_TYPE } from '@hellocoop/constants'
 import { ISSUER } from './config.js'
 import sign from './sign.js'
 import defaultUser from './users.js'
@@ -8,19 +9,17 @@ import mock from './mock.js'
 
 export const codes = {}
 
-const validResponseTypes = new Set([
-    'code',
-    'id_token',
-])
+let releases = {}
 
-const validResponseModes = new Set([
-    'query',
-    'fragment',
-    'form_post',
-])
+const validResponseTypes = new Set(VALID_RESPONSE_TYPE)
+
+const validResponseModes = new Set(VALID_RESPONSE_MODE)
+
+const UPDATE_SUPPORTED_SCOPE_SET = new Set(['picture','email','phone','ethereum','banner', 'discord', 'twitter', 'github', 'gitlab'])
+
 
 // user[0] claims define the valid scopes
-const validScopes = new Set([...['openid'],...Object.keys(defaultUser)])
+const validScopes = new Set([...['openid','profile_update'],...Object.keys(defaultUser)])
 validScopes.delete('sub')
 
 const sendResponse = ( res, type, redirect_uri, params ) => {
@@ -100,11 +99,11 @@ const authorize = async ( req, res ) => {
         return sendInvalidRequest('missing scope')
     if (!nonce)
         return sendInvalidRequest('missing nonce')
-    const scopes = scope.split(' ')
-    const scopesSet = new Set(scopes)
-    if (scopes.length !== scopesSet.size)
+    let _scopes = scope.split(' ')
+    let scopesSet = new Set(_scopes)
+    if (_scopes.length !== scopesSet.size)
         return sendInvalidRequest('duplicate scopes')
-    const invalidScopes = scopes.filter(scope => !validScopes.has(scope))
+    const invalidScopes = _scopes.filter(scope => !validScopes.has(scope))
     if (invalidScopes.length)
         return sendInvalidRequest(`invalid scopes: ${invalidScopes.join(', ')}`)
     if (!scopesSet.has('openid'))
@@ -112,32 +111,49 @@ const authorize = async ( req, res ) => {
     if (response_type === 'id_token' && code_challenge)
         return sendInvalidRequest('code_challenge is invalid for id_token response_type')
     if (code_challenge_method && code_challenge_method != 'S256')
-        return sendInvalidRequest('only S256 code_challenge_method is supported')
+        return sendInvalidRequest('only code_challenge_method=S256 is supported')
+
+    // get current user in case profile_update scope
+    const MOCK = mock()
+    let userClaims = {...defaultUser, ...MOCK.claims || {}}
+    const claims = {}
+    claims.sub = userClaims.sub
+
+    // process profile_update scope
+    if (scopesSet.has('profile_update')) { 
+        if (scopesSet.size !== 3)
+            return sendInvalidRequest('profile_update scope must be used with only one other scope')
+        const scopeToUpdate = _scopes.filter(scope => (scope !== 'profile_update') && (scope != 'openid'))[0]
+        if (!UPDATE_SUPPORTED_SCOPE_SET.has(scopeToUpdate))
+            return sendInvalidRequest(`profile_update scope is not supported for ${scopeToUpdate}`)
+        if (!releases[claims.sub] || !releases[claims.sub][scopeToUpdate])
+            return sendInvalidRequest(`no previous ${scopeToUpdate} for profile_update`)
+        scopesSet.delete('profile_update')
+        // fall through and any mocked claim as what we are updating
+    }
 
 
     // we got a valid request -- check if we are to mock an error
-    const MOCK = mock()
     if (MOCK.authorize?.error) 
         return sendResponse(res, response_mode, redirect_uri, {...params, error:MOCK.authorize.error})
 
     // all good -- let's mint a mocked id_token
+    // first lets get the previous claims for this user if any scope superset
+    const previousClaims = releases[claims.sub] || {}
+    Object.keys(previousClaims).forEach(scope => scopesSet.add(scope))
 
+    userClaims = {...userClaims, ...previousClaims || {}, ...MOCK.claims || {}}
 
-
-    const userClaims = {...defaultUser, ...MOCK.claims || {}}
-    const claims = {}
-    claims.sub = userClaims.sub
-    scopes.forEach(scope => { 
+    scopesSet.forEach(scope => { 
         if (scope !== 'openid') claims[scope] = userClaims[scope]
     })
     if (scopesSet.has('email')) {
-        scopes.push('email_verified')
         claims.email_verified = true
     }
     if (scopesSet.has('phone')) {
-        scopes.push('phone_verified')
         claims.phone_verified = true
     }
+    releases[claims.sub] = claims // for next time
     const id_payload = {
         iss: ISSUER,
         aud: client_id,
@@ -145,7 +161,6 @@ const authorize = async ( req, res ) => {
         // iat: Math.floor(Date.now()/1000),
         // TODO - mock an expired token or future dated token?
         nonce,
-        scope: scopes.join(' '),
         ...claims,
     }
     const id_token = await sign(id_payload, MOCK?.token?.options, MOCK?.token?.wrongKey)
@@ -181,6 +196,10 @@ const authorize = async ( req, res ) => {
     params.code = code
     return sendResponse(res, response_mode, redirect_uri, params)
        
+}
+
+export const reset = async () => {
+    releases = {}
 }
 
 export default authorize

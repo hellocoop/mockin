@@ -1,6 +1,7 @@
 // mock.js
 
 const { users } = await import('./users.js')
+const { reset } = import ('./authorize.js')
 
 let MOCK = {}
 const mock = () => MOCK
@@ -87,13 +88,8 @@ export const user = async ( req, res ) => {
 }
 
 const del = async ( req, res ) => {
-    const mock = req.params?.mock
-    if (!mock)
-        MOCK = {}
-    else if (MOCK[mock])
-        delete MOCK[mock]
-    else if (!mocks.has(mock))
-        return res.status(404).send({error:`"${mock}" is not a recognized parameter`})
+    MOCK = {}
+    reset()
     return res.send({MOCK})
 }
 

@@ -1,5 +1,4 @@
 import { expect } from 'chai'
-import pkceChallenge from "pkce-challenge"
 import Fastify from 'fastify'
 
 import api from '../src/api.js'
@@ -10,30 +9,9 @@ api(fastify)
 import {users} from '../src/users.js'
 const ISSUER = 'http://mockin'
 
-const { code_challenge, code_verifier } = await pkceChallenge()
 const client_id = 'client_id-value'
 const nonce = 'nonce-value'
 const redirect_uri = 'https://redirect_uri-value'
-
-function setsAreEqual(setA, setB) {
-    if (setA.size !== setB.size) return false;
-    for (let item of setA) {
-        if (!setB.has(item)) return false;
-    }
-    return true;
-}
-
-// Usage example
-describe('Set comparison', function() {
-    it('should verify that two sets contain the same elements', function() {
-        const set1 = new Set([1, 2, 3]);
-        const set2 = new Set([3, 2, 1]);
-        
-        // Use the custom function in the assertion
-        expect(setsAreEqual(set1, set2)).to.be.true;
-    });
-});
-
 
 describe('Mock User Tests', function() {
     beforeEach(async function() {
@@ -108,14 +86,8 @@ describe('Mock User Tests', function() {
             expect(postData.aud).to.equal(client_id)
             expect(postData.nonce).to.exist
             expect(postData.nonce).to.equal(nonce)
-            expect(postData.scope).to.exist
             expect(postData.email_verified).to.exist
             expect(postData.email_verified).to.equal(true)
-            expect(postData.scope).to.exist
-            const scopeSet = new Set(postData.scope.split(' '))
-            console.log("scopeSet", scopeSet)
-            expect(scopeSet).to.exist
-            expect(setsAreEqual(scopeSet, new Set(['openid','picture','name','email','email_verified']))).to.be.true
         })
     })
     describe('PUT /mock/claims', function() {
@@ -175,10 +147,6 @@ describe('Mock User Tests', function() {
             expect(postData.nonce).to.equal(nonce)
             expect(postData.email_verified).to.exist
             expect(postData.email_verified).to.equal(true)
-            expect(postData.scope).to.exist
-            const scopeSet = new Set(postData.scope.split(' '))
-            expect(scopeSet).to.exist
-            expect(setsAreEqual(scopeSet, new Set(['openid','email','email_verified']))).to.be.true
         })
     })
 })
