@@ -1,7 +1,4 @@
 import { expect } from 'chai'
-import pkceChallenge from "pkce-challenge"
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
 import Fastify from 'fastify'
 
 import api from '../src/api.js'
@@ -11,7 +8,6 @@ api(fastify)
 import defaultUser from '../src/users.js'
 const ISSUER = 'http://mockin'
 
-const { code_challenge, code_verifier } = await pkceChallenge()
 const client_id = 'client_id-value'
 const nonce = 'nonce-value'
 const redirect_uri = 'https://redirect_uri-value'

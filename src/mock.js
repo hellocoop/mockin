@@ -1,7 +1,8 @@
 // mock.js
 
+import { clearState } from './authorize.js'
+
 const { users } = await import('./users.js')
-const { reset } = import ('./authorize.js')
 
 let MOCK = {}
 const mock = () => MOCK
@@ -87,9 +88,9 @@ export const user = async ( req, res ) => {
     return res.send({MOCK})
 }
 
-const del = async ( req, res ) => {
+const del = ( req, res ) => {
     MOCK = {}
-    reset()
+    clearState()
     return res.send({MOCK})
 }
 

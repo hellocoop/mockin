@@ -198,7 +198,7 @@ const authorize = async ( req, res ) => {
        
 }
 
-export const reset = async () => {
+export const clearState = () => {
     releases = {}
 }
 
