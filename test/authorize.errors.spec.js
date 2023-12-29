@@ -9,7 +9,7 @@ const fastify = Fastify()
 api(fastify)
 
 import defaultUser from '../src/users.js'
-const ISSUER = 'http://mockin'
+import { ISSUER } from '../src/config.js'
 
 const { code_challenge, code_verifier } = await pkceChallenge()
 const client_id = 'client_id-value'

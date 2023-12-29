@@ -6,7 +6,7 @@ const fastify = Fastify()
 api(fastify)
 
 import defaultUser from '../src/users.js'
-const ISSUER = 'http://mockin'
+import { ISSUER } from '../src/config.js'
 
 const client_id = 'client_id-value'
 const nonce = 'nonce-value'
