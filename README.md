@@ -1,8 +1,26 @@
 # mock server
 
-- < intro >
-- < info on https://mock.hello.dev - can use https://playground.hello.dev to test out >
-- < Docker Hub image >
+## Installation
+
+## Configuration
+
+- `IP` - IP that *mockin* will listen on. Defaults to `127.0.0.1`
+- `PORT` - port that *mockin* will listen on. Defaults to `3333`
+- `ISSUER` - Issuer that *mockin* will use as the `iss` value. Defaults to `http:${IP}:${PORT}` which is `http://127.0.0.1:3333` if other defaults are used. Note that the ISSUER value does not need to be the same as IP:PORT, and can be any value except the production ISSUER value (`https://issuer.hello.coop`). It needs to be an address that will resolve to *mockin* if your app is fetching up `ISSUER/.well-known/openid-configuration`
+
+- `client_id` - you can pass any value
+
+If you are using one of the SDKs from https://github.com/hellocoop/packages you set `HELLO_WALLET` to be where the browser and server can reach *mockin* which is `http://127.0.0.1:3333` by default.
+
+## Mockin & Playground
+If you run `npx @hellocoop/mockin` using the defaults and then in https://playground.hello.dev add `http://127.0.0.1:3333/authorize` as an Authorization Server, you can play with the different parameters and see the responses returned. You can make `curl` commands to *mockin* to set mock return values. For example 
+```
+curl -X PUT "http://127.0.0.1:3333/mock/authorization?error=access_denied" 
+```
+will return the current value of MOCK and when using Playground will return the `access_denied` error as if the user had denied access.
+
+
+### Using Docker Image
 
 `npm i -D @hellocoop/mockin`
 `npx mockin`
@@ -11,33 +29,6 @@
 
 ### client
 - any id and redirect URI is accepted
-
-### token
-```json
-header
-{
-
-}
-payload
-{
-    
-}
-```
-
-### set
-
-```json
-header
-{
-
-}
-payload
-{
-
-}
-```
-
-
 
 ## Mock API
 
@@ -67,7 +58,13 @@ PUT /mock/oauth/userinfo
 DELETE /mock/
 
 PUT /mock/user/:user
-    // shorthand for /mock/token {payload}
+    where `:user` can be `0, 1 or 2` per user array in `src/users.js`
+
+PUT /mock/claims
+
+```
+    /mock/claims?email=mock@mock.example
+```
 
 PUT /mock/invite
     ?error
