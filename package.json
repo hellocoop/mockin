@@ -7,6 +7,9 @@
     "node": "~18",
     "npm": "~9"
   },
+  "bin": {
+    "mockin": "./src/server.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hellocoop/mockin.git"

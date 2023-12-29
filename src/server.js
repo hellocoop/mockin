@@ -1,4 +1,4 @@
-// server.js
+#!/usr/bin/env node
 
 import fastify from 'fastify'
 
