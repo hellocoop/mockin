@@ -4,6 +4,9 @@
 - < info on https://mock.hello.dev - can use https://playground.hello.dev to test out >
 - < Docker Hub image >
 
+`npm i -D @hellocoop/mockin`
+`npx mockin`
+
 ## Defaults
 
 ### client
@@ -38,52 +41,45 @@ payload
 
 ## Mock API
 
+PUT /mock/token
+    ?iss=
+    ?aud=
+    ?expired=true
+    ?wrong_key=true
+
 PUT /mock/authorize 
     ?error=
     ?wildcard_domain=
     ?state=
-DELETE /mock/authorize
 
 PUT /mock/oauth/token
     ?status= 
     ?error= 
-DELETE /mock/oauth/token
 
 PUT /mock/oauth/introspection
     ?status= 
     ?error= 
-DELETE /mock/oauth/introspection
 
 PUT /mock/oauth/userinfo
     ?status= 
     ?error= 
-DELETE /mock/oauth/userinfo
 
-PUT /mock/token
-        ?wrong_key
-        ?invalid_key
-        ?wrong_alg
-    { 
-        header
-        payload
-            value: false - will not be returned
-    }
-DELETE /mock/token
+DELETE /mock/
 
-PUT /mock/user
+PUT /mock/user/:user
     // shorthand for /mock/token {payload}
-DELETE /mock/user
 
 PUT /mock/invite
     ?error
-DELETE /mock/invite
 
 PUT /mock/set
     {
         header
         payload
     }
-DELETE /mock/set
+
+DELETE /mock
+
 
 ## Sample Test Suite
 

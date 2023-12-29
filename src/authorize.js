@@ -154,16 +154,20 @@ const authorize = async ( req, res ) => {
         claims.phone_verified = true
     }
     releases[claims.sub] = claims // for next time
+    let iat = Math.floor(Date.now()/1000)
+    if (MOCK?.token?.expired) {
+        iat -= 60 * 60 // 1 hour
+    }
     const id_payload = {
-        iss: ISSUER,
-        aud: client_id,
+        iss: MOCK?.token?.iss || ISSUER,
+        aud: MOCK?.token?.aud || client_id,
         jti: randomUUID(),
-        // iat: Math.floor(Date.now()/1000),
-        // TODO - mock an expired token or future dated token?
+        iat,
         nonce,
         ...claims,
     }
     const id_token = await sign(id_payload, MOCK?.token?.options, MOCK?.token?.wrongKey)
+
     if (id_token instanceof Error)
         return res.status(500).send({error:id_token.message})
 
@@ -175,7 +179,7 @@ const authorize = async ( req, res ) => {
 
     const access_payload = {
         ...id_payload,
-        aud: ISSUER,
+        aud: MOCK?.token?.aud || ISSUER,
     }
     delete access_payload.nonce
 

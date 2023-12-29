@@ -5,8 +5,8 @@ import jwkToPem from 'jwk-to-pem'
 const jwk = (await import('./mock.private.jwk.json', {assert: {type: "json"}})).default
 const pem = jwkToPem(jwk.private,{private:true})  
 
-const jwkWrong = (await import('./mock.private.jwk.json', {assert: {type: "json"}})).default
-const pemWrong = jwkToPem(jwk.private,{private:true})  
+const jwkWrong = (await import('./wrong.private.jwk.json', {assert: {type: "json"}})).default
+const pemWrong = jwkToPem(jwkWrong.private,{private:true})  
 
 
 const sign = async function (payload, newOptions, wrong) {
