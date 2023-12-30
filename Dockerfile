@@ -2,7 +2,7 @@
 FROM node:18-alpine
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN npm install
-COPY ./src .
-EXPOSE 3210
-CMD ["node", "server.js"]
+RUN npm ci --only=production
+COPY ./src ./src
+EXPOSE 3333
+CMD ["node", "./src/server.js"]
