@@ -39,7 +39,6 @@ export default () => { return(JSON.stringify({
     "response_types_supported": VALID_RESPONSE_TYPE,
     "scopes_supported": VALID_IDENTITY_SCOPES,
     "claims_supported": [
-        [
             "sub",
             "iss",
             "aud",
@@ -47,7 +46,6 @@ export default () => { return(JSON.stringify({
             "iat",
             "jti",
             "nonce",
-        ],
         ...VALID_IDENTITY_CLAIMS
     ]
 }, null, 2))}
