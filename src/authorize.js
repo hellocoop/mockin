@@ -119,20 +119,6 @@ const authorize = async ( req, res ) => {
     const claims = {}
     claims.sub = userClaims.sub
 
-    // process profile_update scope
-    if (scopesSet.has('profile_update')) { 
-        if (scopesSet.size !== 3)
-            return sendInvalidRequest('profile_update scope must be used with only one other scope')
-        const scopeToUpdate = _scopes.filter(scope => (scope !== 'profile_update') && (scope != 'openid'))[0]
-        if (!UPDATE_SUPPORTED_SCOPE_SET.has(scopeToUpdate))
-            return sendInvalidRequest(`profile_update scope is not supported for ${scopeToUpdate}`)
-        if (!releases[claims.sub] || !releases[claims.sub][scopeToUpdate])
-            return sendInvalidRequest(`no previous ${scopeToUpdate} for profile_update`)
-        scopesSet.delete('profile_update')
-        // fall through and any mocked claim as what we are updating
-    }
-
-
     // we got a valid request -- check if we are to mock an error
     if (MOCK.authorize?.error) 
         return sendResponse(res, response_mode, redirect_uri, {...params, error:MOCK.authorize.error})
