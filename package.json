@@ -1,7 +1,7 @@
 {
   "name": "@hellocoop/mockin",
   "private": false,
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Hellō Mock Login OpenID Connect Server",
   "engines": {
     "node": "~18",
