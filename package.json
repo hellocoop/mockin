@@ -41,7 +41,7 @@
     "pkce-challenge": "^4.0.1"
   },
   "scripts": {
-    "build": "docker buildx build -t mockin .",
+    "build": "docker buildx build -t mockin . --platform linux/amd64,linux/arm64 --load",
     "start": "node --no-warnings ./src/server.js",
     "test": "mocha",
     "test:debug": "mocha --inspect",
