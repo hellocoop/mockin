@@ -6,6 +6,7 @@ import authorize from './authorize.js'
 import version from './version.js'
 import * as mock from './mock.js'
 import * as oauth from './oauth.js'
+import * as command from './command.js'
 
 export default function (fastify) {      
     fastify.register(fastifyFormbody)
@@ -29,5 +30,7 @@ export default function (fastify) {
     // version
     fastify.get('/version', version)
     fastify.get('/', version)
+    // metadata command token
+    fastify.get('/command/mock', command.mock)
     return fastify    
 }
