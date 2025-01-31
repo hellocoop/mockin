@@ -81,8 +81,82 @@ const users = [
             "username": "AlexanderJohnny",
             "id": "2222222"
         }
+    },
+    {
+        "sub": "sub_PrHrJvaaszcdyltTt52v3UcH_dbf",
+        "name": "Lewis Carroll",
+        "nickname": "Lewis",
+        "given_name": "Lewis",
+        "family_name": "Carroll",
+        "picture": "https://pictures.hello.coop/mock/john-smith-yahoo.jpeg",
+        "email": "lewis.carroll@example.org",
+        "phone": "+31913726352",
+        "ethereum": "0x1230000000000000000000000000000000000000",
+        "discord": {
+            "username": "lewiscarroll",
+            "id": "0000000000"
+        },
+        "github": {
+            "username": "lewiscarroll",
+            "id": "000000000"
+        },
+        "gitlab": {
+            "username": "lewiscarroll",
+            "id": "00000000"
+        },
+        "twitter": {
+            "username": "lewiscarroll",
+            "id": "0000000"
+        }
+    },
+    {
+        "sub": "sub_wdfp66OC0Me43YW9q6sisnP6_h2q",
+        "name": "Dan Brown",
+        "nickname": "Dan",
+        "given_name": "Dan",
+        "family_name": "Brown",
+        "picture": "https://pictures.hello.coop/mock/john-smith-facebook.jpeg",
+        "email": "dan.brown@example.net",
+        "phone": "+919928393823",
+        "ethereum": "0x3240000000000000000000000000000000000000",
+        "discord": {
+            "username": "danbrown",
+            "id": "0000000000"
+        },
+        "github": {
+            "username": "danbrown",
+            "id": "000000000"
+        },
+        "gitlab": {
+            "username": "danbrown",
+            "id": "00000000"
+        },
+        "twitter": {
+            "username": "danbrown",
+            "id": "0000000"
+        }
     }
 ]
 
+const loginHints = {}, domainHints = {};
+const ignoreSubsForDomainHint = [
+    '22222222-2222-2222-2222-22222222' // insanely lengthy domain
+]
+
+for (const user of users) {
+    // set login hint
+    if (user.sub && user.sub.startsWith('sub_'))
+        loginHints[user.sub] = user
+    if (user.email)
+        loginHints[user.email] = user
+
+    // set domain hint
+    if(!ignoreSubsForDomainHint.includes(user.sub) && user.email) {
+        const domain = user.email.split('@')[1]
+        if (domain)
+            domainHints[domain] = user
+    }
+}
+
 export default users[0]
-export { users }
+export { users, loginHints, domainHints }
