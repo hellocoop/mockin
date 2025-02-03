@@ -8,7 +8,7 @@ import api from '../src/api.js'
 const fastify = Fastify()
 api(fastify)
 
-import defaultUser from '../src/users.js'
+import defaultUser, { loginHints, domainHints } from '../src/users.js'
 import { ISSUER } from '../src/config.js'
 
 const { code_challenge, code_verifier } = await pkceChallenge()
@@ -16,15 +16,17 @@ const client_id = 'client_id-value'
 const nonce = 'nonce-value'
 const redirect_uri = 'https://redirect_uri-value'
 
+const authParams = {
+    client_id,
+    nonce,
+    redirect_uri,
+    response_type: 'id_token',
+    scope: 'openid',
+}
+
 const injectAuthToken = {
     method: 'GET',
-    url: '/authorize?' + new URLSearchParams({
-        client_id,
-        nonce,
-        redirect_uri,
-        response_type: 'id_token',
-        scope: 'openid',
-    })
+    url: '/authorize?' + new URLSearchParams(authParams).toString()
 }
 
 describe('Default Authorization Tests', function() {
@@ -37,6 +39,121 @@ describe('Default Authorization Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
+        })
+        it('email as login_hint', async function() {
+            const user = loginHints['dan.brown@example.net']
+            const loginHintAuthParams = {
+                ...authParams,
+                login_hint: user.email,
+                scope: 'openid name email'
+            }
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/authorize?' + new URLSearchParams(loginHintAuthParams).toString()
+            })
+            expect(response.statusCode).to.equal(302)
+            const location = response.headers?.location
+            expect(location).to.contain('https://redirect_uri-value')
+            const responseURL = new URL(location)
+            const id_token = responseURL.searchParams.get('id_token')
+            expect(id_token).to.exist
+            const payload = jwt.decode(id_token)
+            expect(payload).to.exist
+            expect(payload.sub).to.equal(user.sub)
+            expect(payload.name).to.equal(user.name)
+            expect(payload.email).to.equal(user.email)
+            expect(payload.email_verified).to.be.true
+        })
+        it('sub as login_hint', async function() {
+            const user = loginHints['dan.brown@example.net']
+            const loginHintAuthParams = {
+                ...authParams,
+                login_hint: user.sub,
+                scope: 'openid name email'
+            }
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/authorize?' + new URLSearchParams(loginHintAuthParams).toString()
+            })
+            expect(response.statusCode).to.equal(302)
+            const location = response.headers?.location
+            expect(location).to.contain('https://redirect_uri-value')
+            const responseURL = new URL(location)
+            const id_token = responseURL.searchParams.get('id_token')
+            expect(id_token).to.exist
+            const payload = jwt.decode(id_token)
+            expect(payload).to.exist
+            expect(payload.sub).to.equal(user.sub)
+            expect(payload.name).to.equal(user.name)
+            expect(payload.email).to.equal(user.email)
+            expect(payload.email_verified).to.be.true
+        })
+        it('non-existent login_hint', async function() {
+            const loginHintAuthParams = {
+                ...authParams,
+                login_hint: 'does-not-exist',
+                scope: 'openid name email'
+            }
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/authorize?' + new URLSearchParams(loginHintAuthParams).toString()
+            })
+            expect(response.statusCode).to.equal(302)
+            const location = response.headers?.location
+            expect(location).to.contain('https://redirect_uri-value')
+            const responseURL = new URL(location)
+            const error = responseURL.searchParams.get('error')
+            expect(error).to.exist
+            expect(error).to.equal('invalid_request')
+            const errorDescription = responseURL.searchParams.get('error_description')
+            expect(errorDescription).to.exist
+            expect(errorDescription).to.equal('non-existent user for login_hint')
+        })
+        it('domain_hint', async function() {
+            const user = domainHints['example.org']
+            const loginHintAuthParams = {
+                ...authParams,
+                domain_hint: 'example.org',
+                scope: 'openid name email'
+            }
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/authorize?' + new URLSearchParams(loginHintAuthParams).toString()
+            })
+            expect(response.statusCode).to.equal(302)
+            const location = response.headers?.location
+            expect(location).to.contain('https://redirect_uri-value')
+            const responseURL = new URL(location)
+            const id_token = responseURL.searchParams.get('id_token')
+            expect(id_token).to.exist
+            const payload = jwt.decode(id_token)
+            expect(payload).to.exist
+            expect(payload.sub).to.equal(user.sub)
+            expect(payload.name).to.equal(user.name)
+            expect(payload.email).to.equal(user.email)
+            expect(payload.email_verified).to.be.true
+        })
+        it('non-existent domain_hint', async function() {
+            const user = loginHints['dan.brown@example.net']
+            const loginHintAuthParams = {
+                ...authParams,
+                domain_hint: 'does-not-exist',
+                scope: 'openid name email'
+            }
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/authorize?' + new URLSearchParams(loginHintAuthParams).toString()
+            })
+            expect(response.statusCode).to.equal(302)
+            const location = response.headers?.location
+            expect(location).to.contain('https://redirect_uri-value')
+            const responseURL = new URL(location)
+            const error = responseURL.searchParams.get('error')
+            expect(error).to.exist
+            expect(error).to.equal('invalid_request')
+            const errorDescription = responseURL.searchParams.get('error_description')
+            expect(errorDescription).to.exist
+            expect(errorDescription).to.equal('non-existent user for domain_hint')
         })
     })
     describe('Introspection Endpoint', function() {

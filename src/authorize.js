@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { VALID_RESPONSE_MODE, VALID_RESPONSE_TYPE } from '@hellocoop/constants'
 import { ISSUER } from './config.js'
 import sign from './sign.js'
-import defaultUser from './users.js'
+import defaultUser, { loginHints, domainHints } from './users.js'
 import mock from './mock.js'
 
 export const codes = {}
@@ -19,6 +19,8 @@ const UPDATE_SUPPORTED_SCOPE_SET = new Set(['picture','email','phone','ethereum'
 
 
 // user[0] claims define the valid scopes
+// TBD Support for 'profile' scope
+// TBD Remove 'profile_update' scope
 const validScopes = new Set([...['openid','profile_update'],...Object.keys(defaultUser)])
 validScopes.delete('sub')
 
@@ -65,7 +67,9 @@ const authorize = async ( req, res ) => {
             state,
             nonce,
             code_challenge,
-            code_challenge_method 
+            code_challenge_method,
+            login_hint,
+            domain_hint,
         } } = req
     const params = {}
     if (state)
@@ -113,9 +117,28 @@ const authorize = async ( req, res ) => {
     if (code_challenge_method && code_challenge_method != 'S256')
         return sendInvalidRequest('only code_challenge_method=S256 is supported')
 
-    // get current user in case profile_update scope
-    const MOCK = mock()
-    let userClaims = {...defaultUser, ...MOCK.claims || {}}
+    let MOCK, userClaims;
+    if (login_hint) {
+        const user = loginHints[login_hint]
+        if (!user) {
+            console.error('mock user does not exist for login_hint', login_hint)
+            return sendInvalidRequest('non-existent user for login_hint')
+        }
+        MOCK = user
+        userClaims = {...user, ...MOCK.claims || {}}
+    } else if (domain_hint) { // if both are passed, login_hint takes precedence
+        const user = domainHints[domain_hint]
+        if (!user) {
+            console.error('mock user does not exist for domain_hint', domain_hint)
+            return sendInvalidRequest('non-existent user for domain_hint',)
+        }
+        MOCK = user
+        userClaims = {...user, ...MOCK.claims || {}}
+    } else { // get current user in case profile_update scope
+        MOCK = mock()
+        userClaims = {...defaultUser, ...MOCK.claims || {}}
+    }
+
     const claims = {}
     claims.sub = userClaims.sub
 
