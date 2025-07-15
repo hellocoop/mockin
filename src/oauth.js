@@ -7,8 +7,11 @@ import openid from './openid-configuration.js'
 import { ISSUER } from './config.js'
 import verify from './verify.js'
 import { codes } from './authorize.js'
+import sign from './sign.js'
 
 import JWkS from './mock.jwks.js'
+
+const { users } = await import('./users.js')
 
 const oauthErrorStatusCodes = {
     "access_denied": 403,
@@ -157,4 +160,30 @@ export const jwks = async ( req, res ) => {
     res.header('Content-Type', 'application/json')
     res.send(JWkS)
 
+}
+
+export const accessToken = async function (req, reply) {
+    const scope = req?.query?.scope || 'openid profile email'
+    const payload = {
+        iss: ISSUER,
+        aud: ISSUER,
+        jti: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+        sub: users[0].sub || '00000000-0000-0000-0000-00000000',
+        scope: scope.split(' '),
+        name: users[0].name || 'John Smith',
+        email: users[0].email || 'john.smith@example.com',
+        email_verified: true,
+        picture: users[0].picture || 'https://pictures.hello.coop/mock/portrait-of-john-smith.jpeg',
+        iat: Math.floor(Date.now() / 1000),
+    }
+
+    if (req?.query?.error) {
+        if (req.query.error === 'expired_token') {
+            payload.iat = payload.iat - 61 * 60 // 61 minutes ago
+        }
+    }
+    payload.exp = payload.iat + 60 * 60 // 1 hour expiry
+    
+    const token = await sign(payload)
+    return reply.send({ token })
 }

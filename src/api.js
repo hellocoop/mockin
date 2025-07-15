@@ -27,6 +27,8 @@ export default function (fastify) {
     fastify.put('/mock/:mock', mock.put)
     // reset mock
     fastify.delete('/mock', mock.delete)
+    // access token endpoint
+    fastify.get('/access-token', oauth.accessToken)
     // version
     fastify.get('/version', version)
     fastify.get('/', version)
