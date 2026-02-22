@@ -46,8 +46,12 @@
     "release": "./scripts/release.sh"
   },
   "devDependencies": {
-    "chai": "^4.3.10",
-    "mocha": "^10.2.0"
+    "chai": "^6.2.2",
+    "mocha": "^11.7.5"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "diff": "^8.0.3"
+  }
 }
