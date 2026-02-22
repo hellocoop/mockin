@@ -1,74 +1,60 @@
 #!/bin/bash
+set -e
 
-# ChatGPT generated
+# Usage: npm run release [patch|minor|major]
+# Defaults to "patch" if no argument given.
+# Bumps version, commits, tags, pushes, and creates a GitHub Release
+# which triggers the CI/CD workflow to publish to npm and Docker Hub.
 
-# Check if jq is installed
-if ! command -v jq &> /dev/null
-then
-    echo "jq could not be found. Please install jq to continue."
+BUMP="${1:-patch}"
+
+if [[ "$BUMP" != "patch" && "$BUMP" != "minor" && "$BUMP" != "major" ]]; then
+    echo "Usage: npm run release [patch|minor|major]"
     exit 1
 fi
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null
-then
-    echo "Docker could not be found. Please install Docker to continue."
-    exit 1
-fi
-
-# Check if the repository is clean (no uncommitted changes)
+# Check for clean working tree
 if ! git diff-index --quiet HEAD --; then
-    echo "The repository has uncommitted changes. Please commit or stash them before proceeding."
+    echo "Error: uncommitted changes. Please commit or stash them first."
     exit 1
 fi
 
-# Extract version from package.json using jq
-VERSION=$(jq -r '.version' package.json)
-
-# Docker details
-DOCKER_USERNAME="hellocoop"  
-DOCKER_IMAGE_NAME="mockin"  
-DOCKER_TAG="$DOCKER_USERNAME/$DOCKER_IMAGE_NAME"
-
-# NPM package name
-NPM_PACKAGE_NAME="@hellocoop/mockin"
-
-# Get the latest published version of the npm package
-PUBLISHED_VERSION=$(npm view $NPM_PACKAGE_NAME version)
-
-# Compare the versions
-if [ "$VERSION" = "$PUBLISHED_VERSION" ]; then
-    echo "Current version is the same as the published version. Incrementing the version."
-
-    # Increment the version using npm version patch
-    npm version patch
-
-    # Update VERSION variable to new version
-    VERSION=$(jq -r '.version' package.json)
-
-    echo "New version: $VERSION"
-
-    # Commit and push the changes to the repository
-    git add package.json
-    git commit -m "Increment version to $VERSION"
-    git push origin main
-
-    echo "Updated package.json has been pushed to the repository."
+# Check we're on main
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" != "main" ]; then
+    echo "Error: must be on main branch (currently on $BRANCH)"
+    exit 1
 fi
 
-# Building Docker image
-echo "Building Docker amd64 and arm64 image with tag: $VERSION and pushing to Docker Hub"
-docker buildx build --platform linux/amd64,linux/arm64 -t "$DOCKER_TAG:latest" -t "$DOCKER_TAG:$VERSION" . --push
+# Check gh CLI is available
+if ! command -v gh &> /dev/null; then
+    echo "Error: gh CLI not found. Install it: https://cli.github.com"
+    exit 1
+fi
 
-# # Pushing the image to Docker Hub
-# echo "Pushing latest tag to Docker Hub"
-# docker push "$DOCKER_TAG:latest"
+# Run tests first
+echo "Running tests..."
+npm test
 
-# echo "Pushing version $VERSION tag to Docker Hub"
-# docker push "$DOCKER_TAG:$VERSION"
+# Bump version (updates package.json + package-lock.json, creates git tag)
+echo "Bumping $BUMP version..."
+npm version "$BUMP"
 
-# Publish to npm
-echo "Publishing version $VERSION to npm"
-npm publish
+VERSION=$(node -p "require('./package.json').version")
+echo "New version: $VERSION"
 
-echo "Publishing complete"
+# Push commit and tag
+echo "Pushing to origin..."
+git push origin main
+git push origin "v$VERSION"
+
+# Create GitHub Release (triggers release.yml workflow)
+echo "Creating GitHub Release..."
+gh release create "v$VERSION" \
+    --title "$VERSION" \
+    --generate-notes
+
+echo ""
+echo "Release v$VERSION created!"
+echo "The GitHub Actions workflow will now publish to npm and Docker Hub."
+echo "Monitor at: https://github.com/hellocoop/mockin/actions"
