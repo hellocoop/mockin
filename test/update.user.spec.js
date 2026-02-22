@@ -1,7 +1,6 @@
 import { expect } from 'chai'
 import pkceChallenge from "pkce-challenge"
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
+import { decodeJwt } from 'jose'
 import Fastify from 'fastify'
 
 import api from '../src/api.js'

@@ -1,27 +1,37 @@
 // sign jwts
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
+import { SignJWT, importJWK } from 'jose'
 
 import jwk from './mock.private.jwk.js'
-const pem = jwkToPem(jwk.private,{private:true})  
+const privateKey = await importJWK(jwk.private, 'RS256')
 
 import jwkWrong from './wrong.private.jwk.js'
-const pemWrong = jwkToPem(jwkWrong.private,{private:true})  
+const privateKeyWrong = await importJWK(jwkWrong.private, 'RS256')
 
 
 const sign = async function (payload, newOptions, wrong) {
     if (!jwk)
         return new Error('no key found')
-    const options = {
-        keyid:      jwk.private.kid,
-        algorithm: 'RS256',
-        ...newOptions || {}
+    const headerOverrides = newOptions?.header || {}
+    const header = {
+        alg: 'RS256',
+        kid: jwk.private.kid,
+        typ: 'JWT',
+        ...headerOverrides,
     }
-    if (!payload.exp && !options.expiresIn)
-        options.expiresIn = '5m'
-    const token = jwt.sign( payload, wrong ? pemWrong : pem, options)  
+    const builder = new SignJWT({...payload})
+        .setProtectedHeader(header)
+    if (!payload.iat)
+        builder.setIssuedAt()
+    if (!payload.exp) {
+        if (payload.iat) {
+            // calculate exp relative to iat to match jsonwebtoken behavior
+            builder.setExpirationTime(payload.iat + 5 * 60)
+        } else {
+            builder.setExpirationTime(newOptions?.expiresIn || '5m')
+        }
+    }
+    const token = await builder.sign(wrong ? privateKeyWrong : privateKey)
     return token
 }
 
 export default sign
-

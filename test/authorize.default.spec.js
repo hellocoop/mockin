@@ -1,7 +1,6 @@
 import { expect } from 'chai'
 import pkceChallenge from "pkce-challenge"
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
+import { decodeJwt, decodeProtectedHeader, jwtVerify, createLocalJWKSet } from 'jose'
 import Fastify from 'fastify'
 
 import api from '../src/api.js'
@@ -57,7 +56,7 @@ describe('Default Authorization Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const payload = jwt.decode(id_token)
+            const payload = decodeJwt(id_token)
             expect(payload).to.exist
             expect(payload.sub).to.equal(user.sub)
             expect(payload.name).to.equal(user.name)
@@ -81,7 +80,7 @@ describe('Default Authorization Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const payload = jwt.decode(id_token)
+            const payload = decodeJwt(id_token)
             expect(payload).to.exist
             expect(payload.sub).to.equal(user.sub)
             expect(payload.name).to.equal(user.name)
@@ -126,7 +125,7 @@ describe('Default Authorization Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const payload = jwt.decode(id_token)
+            const payload = decodeJwt(id_token)
             expect(payload).to.exist
             expect(payload.sub).to.equal(user.sub)
             expect(payload.name).to.equal(user.name)
@@ -203,30 +202,24 @@ describe('Default Authorization Tests', function() {
             })
             expect(response.statusCode).to.equal(200)
             const jwks = await response.json()
-            const pems = {}
-            jwks.keys.forEach( jwk => {
-                pems[jwk.kid] = jwkToPem(jwk)
-            })
+            const JWKS = createLocalJWKSet(jwks)
             const authResponse = await fastify.inject(injectAuthToken)
             const location = authResponse.headers?.location
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
-            const { header, payload } = jwt.decode(id_token, { complete: true })
+            const header = decodeProtectedHeader(id_token)
+            const payload = decodeJwt(id_token)
             expect(header).to.exist
             expect(payload).to.exist
             expect(header?.alg).to.equal('RS256')
             expect(header?.typ).to.equal('JWT')
             expect(header?.kid).to.exist
-            const key = pems[header?.kid]
-            expect(key).to.exist
-            const options = {
-                algorithms: ['RS256'],
-                issuer: ISSUER,
-                audience: client_id,
-                nonce
-            }
             try {
-                const decoded = jwt.verify(id_token, key, options)
+                const { payload: decoded } = await jwtVerify(id_token, JWKS, {
+                    algorithms: ['RS256'],
+                    issuer: ISSUER,
+                    audience: client_id,
+                })
                 expect(decoded).to.exist
             } catch (err) {
                 console.error(err)
@@ -282,7 +275,7 @@ describe('Default Authorization Tests', function() {
             const { id_token, access_token } = data
             expect(id_token).to.exist
             expect(access_token).to.exist
-            const { iss, aud, sub, nonce: _nonce } = jwt.decode(id_token)
+            const { iss, aud, sub, nonce: _nonce } = decodeJwt(id_token)
             expect(iss).to.exist
             expect(aud).to.exist
             expect(sub).to.exist

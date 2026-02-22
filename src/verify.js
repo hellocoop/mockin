@@ -1,33 +1,23 @@
 // verify Hello issuer jwt
 
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
+import { jwtVerify, createLocalJWKSet, decodeProtectedHeader, decodeJwt } from 'jose'
 
 import { ISSUER } from './config.js'
 
 import jwks from './mock.jwks.js'
 
-const pems = {}
-jwks.keys.forEach( jwk => {
-    pems[jwk.kid] = jwkToPem(jwk)
-})
+const JWKS = createLocalJWKSet(jwks)
 
 const verify = async function (token, audience, nonce) {
     if (!token) return({error:'token_required'})
     if (!audience) return({error:'client_id_required'})
-    const options = {
-        algorithms: ['RS256'],
-        issuer: ISSUER,
-        audience,
-        nonce
-    }
     try {
-        const {header,payload} = jwt.decode(token,{complete:true})
+        const header = decodeProtectedHeader(token)
+        const payload = decodeJwt(token)
         if (!header?.alg || !payload?.iss)
             return({active:false})
         if (payload?.nonce && !nonce)
             return({error:'nonce_required'})
-        const key = pems[header?.kid]
         if (header.alg != 'RS256') {
             console.error('Invalid algorithm: expected RS256, got ', header.alg)
             return({active:false})
@@ -49,14 +39,14 @@ const verify = async function (token, audience, nonce) {
             console.error('Invalid nonce: expected ', nonce, ' got ', payload.nonce)
             return({active:false})
         }
-        if (!key) {
-            console.error('Invalid key: ', header.kid)
-            return({active:false})
-        }
-        const decoded = jwt.verify(token, key, options)
+        const { payload: decoded } = await jwtVerify(token, JWKS, {
+            algorithms: ['RS256'],
+            issuer: ISSUER,
+            audience,
+        })
         // all good if we made it here
-        decoded.active = true
-        return decoded
+        const result = {...decoded, active: true}
+        return result
     } catch (err) {
         console.error(err)
         return (err instanceof Error) ? err : (new Error(err))

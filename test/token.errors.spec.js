@@ -1,7 +1,6 @@
 import { expect } from 'chai'
 import pkceChallenge from "pkce-challenge"
-import jwt from 'jsonwebtoken'
-import jwkToPem from 'jwk-to-pem'
+import { decodeJwt, decodeProtectedHeader, jwtVerify, createLocalJWKSet } from 'jose'
 import Fastify from 'fastify'
 
 import api from '../src/api.js'
@@ -58,7 +57,7 @@ describe('ID Token Error Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const { iss } = jwt.decode(id_token)
+            const { iss } = decodeJwt(id_token)
             expect(iss).to.exist
             expect(iss).to.not.equal(ISSUER)
         })
@@ -78,7 +77,7 @@ describe('ID Token Error Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const { aud } = jwt.decode(id_token)
+            const { aud } = decodeJwt(id_token)
             expect(aud).to.exist
             expect(aud).to.not.equal(client_id)
         })
@@ -98,7 +97,7 @@ describe('ID Token Error Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const { iat, exp } = jwt.decode(id_token)
+            const { iat, exp } = decodeJwt(id_token)
             expect(iat).to.exist
             expect(exp).to.exist
             expect(exp - iat).to.equal(5*60) // 5 minutes
@@ -121,7 +120,7 @@ describe('ID Token Error Tests', function() {
             const responseURL = new URL(location)
             const id_token = responseURL.searchParams.get('id_token')
             expect(id_token).to.exist
-            const { header } = jwt.decode(id_token, {complete:true})
+            const header = decodeProtectedHeader(id_token)
             expect(header).to.exist
             const { kid } = header
             expect(kid).to.exist
@@ -132,18 +131,13 @@ describe('ID Token Error Tests', function() {
             expect(jwksResponse.statusCode).to.equal(200)
             const jwks = await jwksResponse.json()
             expect(jwks).to.exist
-            const pems = {}
-            jwks.keys.forEach( jwk => {
-                pems[jwk.kid] = jwkToPem(jwk)
-            })
-            const pem = pems[kid]
-            expect(pem).to.exist
+            const JWKS = createLocalJWKSet(jwks)
             try {
-                const result = jwt.verify(id_token, pem)
+                const result = await jwtVerify(id_token, JWKS)
                 expect(result).to.not.exist // should not get here
             } catch (err) { // we expect to get an error
                 expect(err).to.exist
-                expect(err.message).to.equal('invalid signature')
+                expect(err.message).to.include('signature verification failed')
             }
         })
     })
