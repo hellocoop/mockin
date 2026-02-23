@@ -48,8 +48,12 @@ jobs:
   publish-docker:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: sigstore/cosign-installer@v3
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -63,6 +67,7 @@ jobs:
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -72,3 +77,5 @@ jobs:
             hellocoop/mockin:${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Sign image with cosign
+        run: cosign sign --yes hellocoop/mockin@${{ steps.build.outputs.digest }}
