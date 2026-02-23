@@ -33,7 +33,7 @@ All test files are in `test/` and follow the pattern `*.spec.js`.
 ### GitHub Actions Workflows
 
 - **CI** (`.github/workflows/ci.yml`) — runs on PRs to main: `npm ci`, `npm test`, `npm pack --dry-run`
-- **Release** (`.github/workflows/release.yml`) — runs when a GitHub Release is published: verifies tag matches package.json, runs tests, publishes to npm (with provenance) and Docker Hub (multi-arch)
+- **Release** (`.github/workflows/release.yml`) — runs when a GitHub Release is published: verifies tag matches package.json, runs tests, publishes to npm (with Sigstore provenance) and Docker Hub (multi-arch, signed with cosign)
 
 ### npm Trusted Publishing
 
@@ -41,14 +41,27 @@ npm publishing uses OIDC Trusted Publishing (no token needed). Configured at:
 https://www.npmjs.com/package/@hellocoop/mockin/access → Trusted Publishing
 - Repository owner: `hellocoop`, name: `mockin`, workflow: `release.yml`
 
+### Docker Hub
+
+Docker Hub images are published to `hellocoop/mockin` under the `hellocoop` organization.
+The `dickhardt` Docker Hub account manages the org and repositories.
+Images are signed with Sigstore cosign (keyless OIDC) after push.
+
+Verify a signed image:
+```bash
+cosign verify hellocoop/mockin \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp github.com/hellocoop/mockin
+```
+
 ### Required GitHub Secrets
 
 Two secrets must be configured at https://github.com/hellocoop/mockin/settings/secrets/actions:
 
 | Secret | Purpose | How to get it |
 |--------|---------|---------------|
-| `DOCKERHUB_USERNAME` | Docker Hub login | Your Docker Hub username |
-| `DOCKERHUB_TOKEN` | Docker Hub push | hub.docker.com → Account Settings → Personal access tokens → Generate → Read & Write |
+| `DOCKERHUB_USERNAME` | Docker Hub login | `dickhardt` |
+| `DOCKERHUB_TOKEN` | Docker Hub push | hub.docker.com → `dickhardt` Account Settings → Personal access tokens → Read & Write |
 
 ### Release Process
 
