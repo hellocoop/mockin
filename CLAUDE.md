@@ -35,13 +35,18 @@ All test files are in `test/` and follow the pattern `*.spec.js`.
 - **CI** (`.github/workflows/ci.yml`) — runs on PRs to main: `npm ci`, `npm test`, `npm pack --dry-run`
 - **Release** (`.github/workflows/release.yml`) — runs when a GitHub Release is published: verifies tag matches package.json, runs tests, publishes to npm (with provenance) and Docker Hub (multi-arch)
 
+### npm Trusted Publishing
+
+npm publishing uses OIDC Trusted Publishing (no token needed). Configured at:
+https://www.npmjs.com/package/@hellocoop/mockin/access → Trusted Publishing
+- Repository owner: `hellocoop`, name: `mockin`, workflow: `release.yml`
+
 ### Required GitHub Secrets
 
-Three secrets must be configured at https://github.com/hellocoop/mockin/settings/secrets/actions:
+Two secrets must be configured at https://github.com/hellocoop/mockin/settings/secrets/actions:
 
 | Secret | Purpose | How to get it |
 |--------|---------|---------------|
-| `NPM_TOKEN` | npm publish with provenance | npmjs.com → Avatar → Access Tokens → Generate New Token → Granular Access Token → scope to `@hellocoop/mockin` with Read and Write |
 | `DOCKERHUB_USERNAME` | Docker Hub login | Your Docker Hub username |
 | `DOCKERHUB_TOKEN` | Docker Hub push | hub.docker.com → Account Settings → Personal access tokens → Generate → Read & Write |
 
