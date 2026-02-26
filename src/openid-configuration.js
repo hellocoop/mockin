@@ -46,6 +46,10 @@ export default () => { return(JSON.stringify({
             "iat",
             "jti",
             "nonce",
-        ...VALID_IDENTITY_CLAIMS
+        ...VALID_IDENTITY_CLAIMS,
+        "tenant_sub",
+        "tenant",
+        "role",
+        "idp"
     ]
 }, null, 2))}

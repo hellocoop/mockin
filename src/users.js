@@ -25,7 +25,11 @@ const users = [
         "twitter": {
             "username": "JohnSmith",
             "id": "0000000"
-        }
+        },
+        "tenant_sub": null,
+        "tenant": null,
+        "role": null,
+        "idp": null
     },
     {
         "sub": "11111111-1111-1111-1111-11111111",

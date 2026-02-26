@@ -153,9 +153,15 @@ const authorize = async ( req, res ) => {
 
     userClaims = {...userClaims, ...previousClaims || {}, ...MOCK.claims || {}}
 
-    scopesSet.forEach(scope => { 
+    scopesSet.forEach(scope => {
         if (scope !== 'openid') claims[scope] = userClaims[scope]
     })
+    // When tenant_sub scope is requested, also include related managed account claims
+    if (scopesSet.has('tenant_sub')) {
+        for (const claim of ['tenant', 'role', 'idp']) {
+            if (userClaims[claim]) claims[claim] = userClaims[claim]
+        }
+    }
     if (scopesSet.has('email')) {
         claims.email_verified = true
     }

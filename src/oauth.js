@@ -144,6 +144,11 @@ export const userinfo = async function ( req, reply ) {
     VALID_IDENTITY_CLAIMS.forEach(claim => {
         if (payload[claim]) userinfo[claim] = payload[claim]
     })
+    // Hellō extensions for managed accounts
+    const extensionClaims = ['tenant_sub', 'tenant', 'role', 'idp']
+    extensionClaims.forEach(claim => {
+        if (payload[claim]) userinfo[claim] = payload[claim]
+    })
     return reply.send(userinfo)
 }
 
