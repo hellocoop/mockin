@@ -11,7 +11,7 @@ describe('AAuth Interaction Endpoint Tests', function () {
         await fastify.inject({ method: 'DELETE', url: '/mock' })
     })
 
-    it('should return 400 for missing interaction_ticket', async function () {
+    it('should return 400 for missing code', async function () {
         const response = await fastify.inject({
             method: 'GET',
             url: '/aauth/interaction',
@@ -21,17 +21,17 @@ describe('AAuth Interaction Endpoint Tests', function () {
         expect(data.error).to.equal('invalid_request')
     })
 
-    it('should return 400 for unknown interaction_ticket', async function () {
+    it('should return 400 for unknown code', async function () {
         const response = await fastify.inject({
             method: 'GET',
-            url: '/aauth/interaction?interaction_ticket=unknown-ticket',
+            url: '/aauth/interaction?code=UNKNOWN1',
         })
         expect(response.statusCode).to.equal(400)
         const data = response.json()
         expect(data.error).to.equal('invalid_request')
     })
 
-    it('should auto-approve and return HTML when no callback_url', async function () {
+    it('should auto-approve and return HTML when no callback', async function () {
         // Configure interaction required
         await fastify.inject({
             method: 'PUT',
@@ -40,7 +40,7 @@ describe('AAuth Interaction Endpoint Tests', function () {
             payload: JSON.stringify({ auto_grant: false, interaction_required: true }),
         })
 
-        // Get tickets
+        // Get 202 with code
         const init = await signedPost('/aauth/token', { scope: 'openid' })
         const initResponse = await fastify.inject({
             method: 'POST',
@@ -48,19 +48,20 @@ describe('AAuth Interaction Endpoint Tests', function () {
             headers: init.headers,
             payload: init.payload,
         })
-        const { interaction_ticket } = initResponse.json()
+        const aauth = initResponse.headers['aauth']
+        const code = aauth.match(/code="([^"]+)"/)[1]
 
         // Visit interaction endpoint
         const response = await fastify.inject({
             method: 'GET',
-            url: `/aauth/interaction?interaction_ticket=${interaction_ticket}`,
+            url: `/aauth/interaction?code=${code}`,
         })
         expect(response.statusCode).to.equal(200)
         expect(response.headers['content-type']).to.include('text/html')
         expect(response.body).to.include('Authorization Approved')
     })
 
-    it('should redirect to callback_url when provided', async function () {
+    it('should redirect to callback when provided as query param', async function () {
         await fastify.inject({
             method: 'PUT',
             url: '/mock/aauth',
@@ -70,8 +71,6 @@ describe('AAuth Interaction Endpoint Tests', function () {
 
         const init = await signedPost('/aauth/token', {
             scope: 'openid',
-            callback_url: 'https://agent.example.com/callback',
-            callback_ticket: 'my-callback-ticket',
         })
         const initResponse = await fastify.inject({
             method: 'POST',
@@ -79,19 +78,19 @@ describe('AAuth Interaction Endpoint Tests', function () {
             headers: init.headers,
             payload: init.payload,
         })
-        const { interaction_ticket } = initResponse.json()
+        const aauth = initResponse.headers['aauth']
+        const code = aauth.match(/code="([^"]+)"/)[1]
 
         const response = await fastify.inject({
             method: 'GET',
-            url: `/aauth/interaction?interaction_ticket=${interaction_ticket}`,
+            url: `/aauth/interaction?code=${code}&callback=${encodeURIComponent('https://agent.example.com/callback')}`,
         })
         expect(response.statusCode).to.equal(302)
         const location = response.headers.location
-        expect(location).to.include('https://agent.example.com/callback')
-        expect(location).to.include('callback_ticket=my-callback-ticket')
+        expect(location).to.equal('https://agent.example.com/callback')
     })
 
-    it('should deny when mock error is access_denied', async function () {
+    it('should deny when mock error is denied', async function () {
         await fastify.inject({
             method: 'PUT',
             url: '/mock/aauth',
@@ -99,7 +98,7 @@ describe('AAuth Interaction Endpoint Tests', function () {
             payload: JSON.stringify({
                 auto_grant: false,
                 interaction_required: true,
-                error: 'access_denied',
+                error: 'denied',
             }),
         })
 
@@ -110,14 +109,15 @@ describe('AAuth Interaction Endpoint Tests', function () {
             headers: init.headers,
             payload: init.payload,
         })
-        const { interaction_ticket } = initResponse.json()
+        const aauth = initResponse.headers['aauth']
+        const code = aauth.match(/code="([^"]+)"/)[1]
 
         const response = await fastify.inject({
             method: 'GET',
-            url: `/aauth/interaction?interaction_ticket=${interaction_ticket}`,
+            url: `/aauth/interaction?code=${code}`,
         })
         expect(response.statusCode).to.equal(403)
         const data = response.json()
-        expect(data.error).to.equal('access_denied')
+        expect(data.error).to.equal('denied')
     })
 })

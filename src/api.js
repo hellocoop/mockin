@@ -36,6 +36,9 @@ export default function (fastify) {
         },
         preHandler: aauth.verifySig,
     }, aauth.token)
+    fastify.get('/aauth/pending/:id', {
+        preHandler: aauth.verifySig,
+    }, aauth.pending)
     fastify.get('/aauth/interaction', aauth.interaction)
     // config mock
     fastify.get('/mock', mock.get)

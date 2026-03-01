@@ -19,8 +19,8 @@ describe('AAuth Metadata & JWKS Tests', function () {
             expect(data.token_endpoint).to.equal(`${ISSUER}/aauth/token`)
             expect(data.interaction_endpoint).to.equal(`${ISSUER}/aauth/interaction`)
             expect(data.jwks_uri).to.equal(`${ISSUER}/aauth/jwks`)
-            expect(data.signing_algs_supported).to.deep.equal(['EdDSA'])
-            expect(data.scopes_supported).to.deep.equal(['openid', 'profile', 'email'])
+            expect(data).to.not.have.property('signing_algs_supported')
+            expect(data).to.not.have.property('scopes_supported')
         })
     })
 

@@ -2,48 +2,45 @@
 
 import { getConfig } from './mock.js'
 import defaultUser from '../users.js'
-import { getPendingByInteractionTicket, updatePendingRequest } from './state.js'
+import { getPendingByCode, updatePendingRequest } from './state.js'
 
 export const interaction = async (req, res) => {
     const config = getConfig()
-    const { interaction_ticket } = req.query
+    const { code, callback } = req.query
 
-    if (!interaction_ticket) {
+    if (!code) {
         return res.code(400).send({
             error: 'invalid_request',
-            error_description: 'Missing interaction_ticket',
+            error_description: 'Missing code',
         })
     }
 
-    const pending = getPendingByInteractionTicket(interaction_ticket)
+    const pending = getPendingByCode(code)
     if (!pending) {
         return res.code(400).send({
             error: 'invalid_request',
-            error_description: 'Unknown interaction_ticket',
+            error_description: 'Unknown code',
         })
     }
 
-    if (config.error === 'access_denied') {
-        updatePendingRequest(pending.requestTicket, { status: 'denied' })
-        if (pending.callback_url) {
-            const url = new URL(pending.callback_url)
-            url.searchParams.set('error', 'access_denied')
-            if (pending.callback_ticket) url.searchParams.set('callback_ticket', pending.callback_ticket)
+    if (config.error === 'denied' || config.error === 'access_denied') {
+        updatePendingRequest(pending.id, { status: 'denied' })
+        if (callback) {
+            const url = new URL(callback)
+            url.searchParams.set('error', 'denied')
             return res.redirect(url.toString())
         }
-        return res.code(403).send({ error: 'access_denied' })
+        return res.code(403).send({ error: 'denied' })
     }
 
     // Mock auto-approval
-    updatePendingRequest(pending.requestTicket, {
+    updatePendingRequest(pending.id, {
         status: 'approved',
         user_sub: defaultUser.sub,
     })
 
-    if (pending.callback_url) {
-        const url = new URL(pending.callback_url)
-        if (pending.callback_ticket) url.searchParams.set('callback_ticket', pending.callback_ticket)
-        return res.redirect(url.toString())
+    if (callback) {
+        return res.redirect(callback)
     }
 
     res.header('Content-Type', 'text/html')
