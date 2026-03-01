@@ -7,7 +7,7 @@ import { ISSUER } from '../config.js'
 import { privateKey, kid } from './keys.js'
 import { getConfig } from './mock.js'
 import defaultUser from '../users.js'
-import { createPendingRequest } from './state.js'
+import { createPendingRequest, updatePendingRequest } from './state.js'
 
 async function issueAuthToken({ agent_id, agent_jwk, resource, scope, user_sub, claims }) {
     const config = getConfig()
@@ -92,7 +92,7 @@ export const token = async (req, res) => {
         })
     }
 
-    // Interaction required — generate pending request with code
+    // Deferred response — create pending request
     const { id: pendingId, code } = createPendingRequest({
         agent_id,
         agent_jwk,
@@ -103,6 +103,27 @@ export const token = async (req, res) => {
     })
 
     const location = `${ISSUER}/aauth/pending/${pendingId}`
+    const requireMode = config.require || 'interaction'
+
+    // Approval mode — auto-resolve immediately (no user interaction needed)
+    if (requireMode === 'approval') {
+        if (config.error) {
+            updatePendingRequest(pendingId, { status: 'error', error: config.error })
+        } else {
+            updatePendingRequest(pendingId, { status: 'approved', user_sub: defaultUser.sub })
+        }
+        res.code(202)
+        res.header('Location', location)
+        res.header('Retry-After', '0')
+        res.header('Cache-Control', 'no-store')
+        return res.send({
+            status: 'pending',
+            location,
+            require: 'approval',
+        })
+    }
+
+    // Interaction mode (default) — agent must direct user to interaction endpoint
     res.code(202)
     res.header('Location', location)
     res.header('Retry-After', '0')

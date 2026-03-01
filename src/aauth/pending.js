@@ -52,8 +52,10 @@ export const pending = async (req, res) => {
         })
     }
 
-    if (pendingReq.status === 'denied') {
-        return res.code(403).send({ error: 'denied' })
+    if (pendingReq.status === 'error') {
+        const error = pendingReq.error || 'denied'
+        const statusCode = error === 'expired' ? 408 : error === 'invalid_code' ? 410 : 403
+        return res.code(statusCode).send({ error })
     }
 
     if (pendingReq.status === 'approved') {

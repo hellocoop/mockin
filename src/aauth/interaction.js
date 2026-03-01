@@ -23,14 +23,17 @@ export const interaction = async (req, res) => {
         })
     }
 
-    if (config.error === 'denied' || config.error === 'access_denied') {
-        updatePendingRequest(pending.id, { status: 'denied' })
+    const errorValues = ['denied', 'abandoned', 'expired', 'invalid_code', 'access_denied']
+    if (config.error && errorValues.includes(config.error)) {
+        const error = config.error === 'access_denied' ? 'denied' : config.error
+        updatePendingRequest(pending.id, { status: 'error', error })
         if (callback) {
             const url = new URL(callback)
-            url.searchParams.set('error', 'denied')
+            url.searchParams.set('error', error)
             return res.redirect(url.toString())
         }
-        return res.code(403).send({ error: 'denied' })
+        const statusCode = error === 'expired' ? 408 : error === 'invalid_code' ? 410 : 403
+        return res.code(statusCode).send({ error })
     }
 
     // Mock auto-approval

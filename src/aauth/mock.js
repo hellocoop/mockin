@@ -29,6 +29,7 @@ export const put = async (req, res) => {
     if (body.interaction_required !== undefined) AAUTH_MOCK.interaction_required = !!body.interaction_required
     if (body.error !== undefined) AAUTH_MOCK.error = body.error || undefined
     if (body.claims !== undefined) AAUTH_MOCK.claims = body.claims || undefined
+    if (body.require !== undefined) AAUTH_MOCK.require = body.require || undefined
     if (body.token_lifetime !== undefined) AAUTH_MOCK.token_lifetime = body.token_lifetime || 3600
     return res.send(AAUTH_MOCK)
 }
