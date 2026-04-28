@@ -5,80 +5,80 @@ import api from '../../src/api.js'
 const fastify = Fastify()
 api(fastify)
 
-describe('AAuth Mock Configuration Tests', function () {
+describe('AAuth Mock Configuration', function () {
     beforeEach(async function () {
         await fastify.inject({ method: 'DELETE', url: '/mock' })
     })
 
-    describe('GET /mock/aauth', function () {
-        it('should return default config with auto_grant true', async function () {
-            const response = await fastify.inject({
-                method: 'GET',
-                url: '/mock/aauth',
-            })
-            expect(response.statusCode).to.equal(200)
-            const data = response.json()
-            expect(data.auto_grant).to.equal(true)
+    it('returns default config with auto_approve=true', async function () {
+        const response = await fastify.inject({
+            method: 'GET',
+            url: '/mock/aauth',
         })
+        expect(response.statusCode).to.equal(200)
+        const data = response.json()
+        expect(data.auto_approve).to.equal(true)
+        expect(data.permission).to.equal('granted')
+        expect(data.token_lifetime).to.equal(3600)
     })
 
-    describe('PUT /mock/aauth', function () {
-        it('should update auto_grant to false', async function () {
-            const response = await fastify.inject({
-                method: 'PUT',
-                url: '/mock/aauth',
-                headers: { 'content-type': 'application/json' },
-                payload: JSON.stringify({ auto_grant: false }),
-            })
-            expect(response.statusCode).to.equal(200)
-            const data = response.json()
-            expect(data.auto_grant).to.equal(false)
+    it('updates requirement to interaction', async function () {
+        const response = await fastify.inject({
+            method: 'PUT',
+            url: '/mock/aauth',
+            headers: { 'content-type': 'application/json' },
+            payload: JSON.stringify({ requirement: 'interaction' }),
         })
-
-        it('should set interaction_required', async function () {
-            const response = await fastify.inject({
-                method: 'PUT',
-                url: '/mock/aauth',
-                headers: { 'content-type': 'application/json' },
-                payload: JSON.stringify({ interaction_required: true }),
-            })
-            expect(response.statusCode).to.equal(200)
-            const data = response.json()
-            expect(data.interaction_required).to.equal(true)
-        })
-
-        it('should set error', async function () {
-            const response = await fastify.inject({
-                method: 'PUT',
-                url: '/mock/aauth',
-                headers: { 'content-type': 'application/json' },
-                payload: JSON.stringify({ error: 'access_denied' }),
-            })
-            expect(response.statusCode).to.equal(200)
-            const data = response.json()
-            expect(data.error).to.equal('access_denied')
-        })
+        expect(response.statusCode).to.equal(200)
+        expect(response.json().requirement).to.equal('interaction')
     })
 
-    describe('DELETE /mock resets AAuth config', function () {
-        it('should reset AAuth config on DELETE /mock', async function () {
-            // Set custom config
-            await fastify.inject({
-                method: 'PUT',
-                url: '/mock/aauth',
-                headers: { 'content-type': 'application/json' },
-                payload: JSON.stringify({ auto_grant: false, error: 'access_denied' }),
-            })
-            // Reset all mock state
-            await fastify.inject({ method: 'DELETE', url: '/mock' })
-            // Verify reset
-            const response = await fastify.inject({
-                method: 'GET',
-                url: '/mock/aauth',
-            })
-            const data = response.json()
-            expect(data.auto_grant).to.equal(true)
-            expect(data.error).to.be.undefined
+    it('sets error injection', async function () {
+        const response = await fastify.inject({
+            method: 'PUT',
+            url: '/mock/aauth',
+            headers: { 'content-type': 'application/json' },
+            payload: JSON.stringify({ error: 'denied' }),
         })
+        expect(response.statusCode).to.equal(200)
+        expect(response.json().error).to.equal('denied')
+    })
+
+    it('flips permission to denied with reason', async function () {
+        await fastify.inject({
+            method: 'PUT',
+            url: '/mock/aauth',
+            headers: { 'content-type': 'application/json' },
+            payload: JSON.stringify({
+                permission: 'denied',
+                permission_reason: 'unsafe action',
+            }),
+        })
+        const response = await fastify.inject({
+            method: 'GET',
+            url: '/mock/aauth',
+        })
+        expect(response.json().permission).to.equal('denied')
+        expect(response.json().permission_reason).to.equal('unsafe action')
+    })
+
+    it('DELETE /mock resets aauth config', async function () {
+        await fastify.inject({
+            method: 'PUT',
+            url: '/mock/aauth',
+            headers: { 'content-type': 'application/json' },
+            payload: JSON.stringify({
+                auto_approve: false,
+                requirement: 'interaction',
+                error: 'denied',
+            }),
+        })
+        await fastify.inject({ method: 'DELETE', url: '/mock' })
+        const data = (
+            await fastify.inject({ method: 'GET', url: '/mock/aauth' })
+        ).json()
+        expect(data.auto_approve).to.equal(true)
+        expect(data.requirement).to.be.null
+        expect(data.error).to.be.null
     })
 })

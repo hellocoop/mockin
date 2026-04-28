@@ -1,51 +1,48 @@
-// aauth/interaction.js — /aauth/interaction handler (GET, auto-approves)
+// aauth/interaction.js — POST /aauth/interaction.
+//
+// Agent reaches the user via the PS. Mockin handles each `type` with
+// canned auto-completion.
 
-import { getConfig } from './mock.js'
-import defaultUser from '../users.js'
-import { getPendingByCode, updatePendingRequest } from './state.js'
+import { ISSUER } from '../config.js'
+import { createPending } from './state.js'
 
-export const interaction = async (req, res) => {
-    const config = getConfig()
-    const { code, callback } = req.query
+const VALID_TYPES = new Set(['interaction', 'payment', 'question', 'completion'])
 
-    if (!code) {
-        return res.code(400).send({
+export const interaction = async (req, reply) => {
+    const aauth = req.aauth
+    const body = req.body || {}
+
+    if (!body.type || !VALID_TYPES.has(body.type)) {
+        return reply.code(400).send({
             error: 'invalid_request',
-            error_description: 'Missing code',
+            error_description: 'type must be interaction|payment|question|completion',
         })
     }
 
-    const pending = getPendingByCode(code)
-    if (!pending) {
-        return res.code(400).send({
-            error: 'invalid_request',
-            error_description: 'Unknown code',
+    if (body.type === 'completion') {
+        return reply.code(200).send({ status: 'received' })
+    }
+
+    if (body.type === 'question') {
+        return reply.code(200).send({
+            answer: 'Mock answer: yes, proceed.',
         })
     }
 
-    const errorValues = ['denied', 'abandoned', 'expired', 'invalid_code', 'access_denied']
-    if (config.error && errorValues.includes(config.error)) {
-        const error = config.error === 'access_denied' ? 'denied' : config.error
-        updatePendingRequest(pending.id, { status: 'error', error })
-        if (callback) {
-            const url = new URL(callback)
-            url.searchParams.set('error', error)
-            return res.redirect(url.toString())
-        }
-        const statusCode = error === 'expired' ? 408 : error === 'invalid_code' ? 410 : 403
-        return res.code(statusCode).send({ error })
-    }
-
-    // Mock auto-approval
-    updatePendingRequest(pending.id, {
-        status: 'approved',
-        user_sub: defaultUser.sub,
+    // interaction / payment — defer briefly via pending so polling code-paths
+    // exist for client testing.
+    const { id } = createPending({
+        kind: 'interaction',
+        agent_id: aauth.agent_id,
+        type: body.type,
+        url: body.url || null,
+        code: body.code || null,
     })
-
-    if (callback) {
-        return res.redirect(callback)
-    }
-
-    res.header('Content-Type', 'text/html')
-    return res.send('<html><body><h1>Authorization Approved</h1><p>You may close this window.</p></body></html>')
+    const location = `${ISSUER}/aauth/pending/${id}`
+    reply.code(202)
+    reply.header('Location', location)
+    reply.header('Retry-After', '0')
+    reply.header('Cache-Control', 'no-store')
+    reply.header('AAuth-Requirement', 'requirement=approval')
+    return reply.send({ status: 'pending', location })
 }

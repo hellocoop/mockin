@@ -1,231 +1,198 @@
+// Deferred-mode polling — when mock.requirement is set, /aauth/token
+// returns 202 with a pending Location. The first poll auto-resolves and
+// returns the auth_token (mockin auto-approves on the agent's behalf).
+
 import { expect } from 'chai'
+import { decodeJwt } from 'jose'
 import Fastify from 'fastify'
+
 import api from '../../src/api.js'
-import { ISSUER } from '../../src/config.js'
-import { signedPost, signedGet } from './helpers.js'
+import {
+    installMocks,
+    mintAgentToken,
+    mintResourceToken,
+    signedRequest,
+} from './helpers.js'
 
 const fastify = Fastify()
 api(fastify)
 
-describe('AAuth Pending Endpoint Tests', function () {
+async function setRequirement(req) {
+    await fastify.inject({
+        method: 'PUT',
+        url: '/mock/aauth',
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify({ requirement: req }),
+    })
+}
+
+async function startTokenRequest() {
+    const agentToken = await mintAgentToken()
+    const resourceToken = await mintResourceToken({ scope: 'openid email' })
+    const { headers, payload } = await signedRequest({
+        method: 'POST',
+        path: '/aauth/token',
+        body: { resource_token: resourceToken },
+        agentToken,
+    })
+    return { agentToken, response: await fastify.inject({
+        method: 'POST',
+        url: '/aauth/token',
+        headers,
+        payload,
+    }) }
+}
+
+describe('AAuth /aauth/pending — deferred mode', function () {
     beforeEach(async function () {
-        await fastify.inject({ method: 'DELETE', url: '/mock' })
+        await installMocks(fastify)
     })
 
-    it('should return 404 for unknown pending id', async function () {
-        const { headers } = await signedGet('/aauth/pending/unknown-id')
+    it('interaction requirement: 202 → poll → auth_token', async function () {
+        await setRequirement('interaction')
+
+        const { agentToken, response: init } = await startTokenRequest()
+        expect(init.statusCode).to.equal(202)
+        expect(init.headers.location).to.match(/\/aauth\/pending\//)
+        expect(init.headers['aauth-requirement']).to.match(/requirement=interaction/)
+        expect(init.headers['aauth-requirement']).to.match(/code="/)
+
+        const path = new URL(init.headers.location).pathname
+        const { headers: pollHeaders } = await signedRequest({
+            method: 'GET',
+            path,
+            agentToken,
+        })
+        const poll = await fastify.inject({
+            method: 'GET',
+            url: path,
+            headers: pollHeaders,
+        })
+        expect(poll.statusCode).to.equal(200)
+        const data = poll.json()
+        expect(data.auth_token).to.be.a('string')
+        const claims = decodeJwt(data.auth_token)
+        expect(claims.email).to.exist
+    })
+
+    it('approval requirement: 202 → poll → auth_token', async function () {
+        await setRequirement('approval')
+
+        const { agentToken, response: init } = await startTokenRequest()
+        expect(init.statusCode).to.equal(202)
+        expect(init.headers['aauth-requirement']).to.equal('requirement=approval')
+
+        const path = new URL(init.headers.location).pathname
+        const { headers: pollHeaders } = await signedRequest({
+            method: 'GET',
+            path,
+            agentToken,
+        })
+        const poll = await fastify.inject({
+            method: 'GET',
+            url: path,
+            headers: pollHeaders,
+        })
+        expect(poll.statusCode).to.equal(200)
+        expect(poll.json().auth_token).to.be.a('string')
+    })
+
+    it('clarification requirement: 202 → poll waits → POST clarification → token', async function () {
+        await setRequirement('clarification')
+
+        const { agentToken, response: init } = await startTokenRequest()
+        expect(init.statusCode).to.equal(202)
+        expect(init.headers['aauth-requirement']).to.equal('requirement=clarification')
+        expect(init.json().clarification).to.be.a('string')
+
+        const path = new URL(init.headers.location).pathname
+
+        // First poll still pending — clarification not answered yet.
+        const { headers: pollHeaders } = await signedRequest({
+            method: 'GET',
+            path,
+            agentToken,
+        })
+        const stillPending = await fastify.inject({
+            method: 'GET',
+            url: path,
+            headers: pollHeaders,
+        })
+        expect(stillPending.statusCode).to.equal(202)
+        expect(stillPending.json().status).to.equal('pending')
+
+        // Agent answers the clarification.
+        const { headers: postHeaders, payload } = await signedRequest({
+            method: 'POST',
+            path,
+            body: { clarification_response: 'because the user asked.' },
+            agentToken,
+        })
+        const ack = await fastify.inject({
+            method: 'POST',
+            url: path,
+            headers: postHeaders,
+            payload,
+        })
+        expect(ack.statusCode).to.equal(202)
+
+        // Subsequent poll returns the token.
+        const { headers: pollHeaders2 } = await signedRequest({
+            method: 'GET',
+            path,
+            agentToken,
+        })
+        const final = await fastify.inject({
+            method: 'GET',
+            url: path,
+            headers: pollHeaders2,
+        })
+        expect(final.statusCode).to.equal(200)
+        expect(final.json().auth_token).to.be.a('string')
+    })
+
+    it('DELETE cancels the pending request', async function () {
+        await setRequirement('approval')
+        const { agentToken, response: init } = await startTokenRequest()
+        const path = new URL(init.headers.location).pathname
+
+        const { headers: delHeaders } = await signedRequest({
+            method: 'DELETE',
+            path,
+            agentToken,
+        })
+        const del = await fastify.inject({
+            method: 'DELETE',
+            url: path,
+            headers: delHeaders,
+        })
+        expect(del.statusCode).to.equal(204)
+
+        const { headers: pollHeaders } = await signedRequest({
+            method: 'GET',
+            path,
+            agentToken,
+        })
+        const poll = await fastify.inject({
+            method: 'GET',
+            url: path,
+            headers: pollHeaders,
+        })
+        expect(poll.statusCode).to.equal(410)
+    })
+
+    it('GET on unknown id returns 404', async function () {
+        const agentToken = await mintAgentToken()
+        const { headers } = await signedRequest({
+            method: 'GET',
+            path: '/aauth/pending/does-not-exist',
+            agentToken,
+        })
         const response = await fastify.inject({
             method: 'GET',
-            url: '/aauth/pending/unknown-id',
+            url: '/aauth/pending/does-not-exist',
             headers,
         })
         expect(response.statusCode).to.equal(404)
-        const data = response.json()
-        expect(data.error).to.equal('not_found')
-    })
-
-    it('should return 202 while pending', async function () {
-        await fastify.inject({
-            method: 'PUT',
-            url: '/mock/aauth',
-            headers: { 'content-type': 'application/json' },
-            payload: JSON.stringify({ auto_grant: false, interaction_required: true }),
-        })
-
-        // Create a pending request
-        const init = await signedPost('/aauth/token', { scope: 'openid' })
-        const initResponse = await fastify.inject({
-            method: 'POST',
-            url: '/aauth/token',
-            headers: init.headers,
-            payload: init.payload,
-        })
-        expect(initResponse.statusCode).to.equal(202)
-
-        const location = initResponse.headers.location
-        const pendingPath = new URL(location).pathname
-
-        // Poll before interaction
-        const poll = await signedGet(pendingPath)
-        const pollResponse = await fastify.inject({
-            method: 'GET',
-            url: pendingPath,
-            headers: poll.headers,
-        })
-
-        expect(pollResponse.statusCode).to.equal(202)
-        expect(pollResponse.headers.location).to.include('/aauth/pending/')
-        expect(pollResponse.headers['retry-after']).to.equal('5')
-        expect(pollResponse.headers['cache-control']).to.equal('no-store')
-
-        // Verify JSON body
-        const data = pollResponse.json()
-        expect(data.status).to.equal('pending')
-        expect(data.location).to.equal(pollResponse.headers.location)
-    })
-
-    it('should return 200 with auth_token after interaction approval', async function () {
-        await fastify.inject({
-            method: 'PUT',
-            url: '/mock/aauth',
-            headers: { 'content-type': 'application/json' },
-            payload: JSON.stringify({ auto_grant: false, interaction_required: true }),
-        })
-
-        // Create pending request
-        const init = await signedPost('/aauth/token', { scope: 'openid' })
-        const initResponse = await fastify.inject({
-            method: 'POST',
-            url: '/aauth/token',
-            headers: init.headers,
-            payload: init.payload,
-        })
-        const location = initResponse.headers.location
-        const pendingPath = new URL(location).pathname
-        const aauth = initResponse.headers['aauth']
-        const code = aauth.match(/code="([^"]+)"/)[1]
-
-        // Approve via interaction
-        await fastify.inject({
-            method: 'GET',
-            url: `/aauth/interaction?code=${code}`,
-        })
-
-        // Poll — should get token
-        const poll = await signedGet(pendingPath)
-        const pollResponse = await fastify.inject({
-            method: 'GET',
-            url: pendingPath,
-            headers: poll.headers,
-        })
-
-        expect(pollResponse.statusCode).to.equal(200)
-        const data = pollResponse.json()
-        expect(data.auth_token).to.be.a('string')
-        expect(data.expires_in).to.be.a('number')
-        expect(data).to.not.have.property('refresh_token')
-    })
-
-    it('should return 200 with auth_token for approval mode', async function () {
-        await fastify.inject({
-            method: 'PUT',
-            url: '/mock/aauth',
-            headers: { 'content-type': 'application/json' },
-            payload: JSON.stringify({ auto_grant: false, interaction_required: true, require: 'approval' }),
-        })
-
-        const init = await signedPost('/aauth/token', { scope: 'openid' })
-        const initResponse = await fastify.inject({
-            method: 'POST',
-            url: '/aauth/token',
-            headers: init.headers,
-            payload: init.payload,
-        })
-        expect(initResponse.statusCode).to.equal(202)
-        const body = initResponse.json()
-        expect(body.require).to.equal('approval')
-        expect(body).to.not.have.property('code')
-        expect(initResponse.headers).to.not.have.property('aauth')
-
-        // Poll — already approved
-        const pendingPath = new URL(initResponse.headers.location).pathname
-        const poll = await signedGet(pendingPath)
-        const pollResponse = await fastify.inject({
-            method: 'GET',
-            url: pendingPath,
-            headers: poll.headers,
-        })
-
-        expect(pollResponse.statusCode).to.equal(200)
-        const data = pollResponse.json()
-        expect(data.auth_token).to.be.a('string')
-        expect(data.expires_in).to.be.a('number')
-    })
-
-    describe('error types', function () {
-        for (const [error, expectedStatus] of [
-            ['denied', 403],
-            ['abandoned', 403],
-            ['expired', 408],
-            ['invalid_code', 410],
-        ]) {
-            it(`should return ${expectedStatus} with error "${error}"`, async function () {
-                await fastify.inject({
-                    method: 'PUT',
-                    url: '/mock/aauth',
-                    headers: { 'content-type': 'application/json' },
-                    payload: JSON.stringify({
-                        auto_grant: false,
-                        interaction_required: true,
-                        error,
-                    }),
-                })
-
-                const init = await signedPost('/aauth/token', { scope: 'openid' })
-                const initResponse = await fastify.inject({
-                    method: 'POST',
-                    url: '/aauth/token',
-                    headers: init.headers,
-                    payload: init.payload,
-                })
-                const location = initResponse.headers.location
-                const pendingPath = new URL(location).pathname
-                const aauth = initResponse.headers['aauth']
-                const code = aauth.match(/code="([^"]+)"/)[1]
-
-                // Visit interaction — triggers error
-                await fastify.inject({
-                    method: 'GET',
-                    url: `/aauth/interaction?code=${code}`,
-                })
-
-                // Poll — should get error
-                const poll = await signedGet(pendingPath)
-                const pollResponse = await fastify.inject({
-                    method: 'GET',
-                    url: pendingPath,
-                    headers: poll.headers,
-                })
-
-                expect(pollResponse.statusCode).to.equal(expectedStatus)
-                const data = pollResponse.json()
-                expect(data.error).to.equal(error)
-            })
-        }
-
-        it('should return 403 with error "denied" for approval mode with error', async function () {
-            await fastify.inject({
-                method: 'PUT',
-                url: '/mock/aauth',
-                headers: { 'content-type': 'application/json' },
-                payload: JSON.stringify({
-                    auto_grant: false,
-                    interaction_required: true,
-                    require: 'approval',
-                    error: 'denied',
-                }),
-            })
-
-            const init = await signedPost('/aauth/token', { scope: 'openid' })
-            const initResponse = await fastify.inject({
-                method: 'POST',
-                url: '/aauth/token',
-                headers: init.headers,
-                payload: init.payload,
-            })
-            expect(initResponse.statusCode).to.equal(202)
-            expect(initResponse.json().require).to.equal('approval')
-
-            const pendingPath = new URL(initResponse.headers.location).pathname
-            const poll = await signedGet(pendingPath)
-            const pollResponse = await fastify.inject({
-                method: 'GET',
-                url: pendingPath,
-                headers: poll.headers,
-            })
-
-            expect(pollResponse.statusCode).to.equal(403)
-            expect(pollResponse.json().error).to.equal('denied')
-        })
     })
 })

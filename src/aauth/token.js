@@ -1,138 +1,131 @@
-// aauth/token.js — /aauth/token handler
-
-import { randomUUID } from 'crypto'
-import { SignJWT } from 'jose'
+// aauth/token.js — POST /aauth/token (PS token endpoint).
+//
+// Auto-approve flow (default):
+//   1. HTTPSig + agent_token verified by preHandler (request.aauth)
+//   2. Verify resource_token from request body
+//   3. If R3, fetch + hash-verify the document
+//   4. Inject mock errors / deferred response if configured
+//   5. Issue auth_token immediately, 200
+//
+// Deferred flow (mock.requirement set):
+//   - Create a pending entry with an interaction code
+//   - Return 202 + AAuth-Requirement header + Location
+//   - Agent polls /aauth/pending/:id; first poll resolves and returns token
 
 import { ISSUER } from '../config.js'
-import { privateKey, kid } from './keys.js'
-import { getConfig } from './mock.js'
-import defaultUser from '../users.js'
-import { createPendingRequest, updatePendingRequest } from './state.js'
+import { getConfig, mockErrorFor } from './mock.js'
+import { verifyResourceToken } from './verify-resource-token.js'
+import { fetchR3Document, autoGrantR3 } from './r3.js'
+import { issueAuthToken } from './issue-auth-token.js'
+import { createPending } from './state.js'
 
-async function issueAuthToken({ agent_id, agent_jwk, resource, scope, user_sub, claims }) {
-    const config = getConfig()
-    const lifetime = config.token_lifetime || 3600
-    const tokenClaims = {
-        iss: ISSUER,
-        sub: user_sub,
-        agent: agent_id,
-        cnf: { jwk: agent_jwk },
-        scope: scope || 'openid',
-    }
-    if (resource) tokenClaims.aud = resource
-    if (claims) Object.assign(tokenClaims, claims)
-
-    const token = await new SignJWT(tokenClaims)
-        .setProtectedHeader({ alg: 'EdDSA', typ: 'auth+jwt', kid })
-        .setIssuedAt()
-        .setExpirationTime(`${lifetime}s`)
-        .setJti(randomUUID())
-        .sign(privateKey)
-
-    return { token, lifetime }
+const ERROR_STATUS = {
+    invalid_request: 400,
+    invalid_resource_token: 400,
+    invalid_scope: 400,
+    user_unreachable: 400,
+    denied: 403,
+    server_error: 500,
 }
 
-function extractAgentIdentity(aauth) {
-    let agent_id = null
-    let agent_jwk = aauth.publicKey
-
-    if (aauth.keyType === 'jwt' && aauth.jwt) {
-        agent_id = aauth.jwt.payload.iss || null
-    }
-    if (!agent_id) {
-        agent_id = aauth.thumbprint
-    }
-
-    return { agent_id, agent_jwk }
-}
-
-export const token = async (req, res) => {
-    const config = getConfig()
-
-    // Return error immediately only if not in interaction mode
-    if (config.error && !config.interaction_required) {
-        return res.code(400).send({
-            error: config.error,
-            error_description: `Mock error: ${config.error}`,
-        })
-    }
-
+export const token = async (req, reply) => {
+    const cfg = getConfig()
+    const aauth = req.aauth // set by verifyPreHandler
     const body = req.body || {}
-    const { agent_id, agent_jwk } = extractAgentIdentity(req.aauth)
 
-    // Refresh — agent presents expired auth_token
-    if (body.auth_token) {
-        const { token, lifetime } = await issueAuthToken({
-            agent_id,
-            agent_jwk,
-            resource: body.resource,
-            scope: body.scope,
-            user_sub: defaultUser.sub,
-            claims: config.claims,
-        })
-        return res.send({
-            auth_token: token,
-            expires_in: lifetime,
+    // Mock-injected error (skip the rest of the flow)
+    const mockErr = mockErrorFor('token')
+    if (mockErr) {
+        const status = ERROR_STATUS[mockErr] || 400
+        return reply.code(status).send({
+            error: mockErr,
+            error_description: `Mock error: ${mockErr}`,
         })
     }
 
-    // Direct grant (auto_grant and no interaction required)
-    if (config.auto_grant && !config.interaction_required) {
-        const { token, lifetime } = await issueAuthToken({
-            agent_id,
-            agent_jwk,
-            resource: body.resource,
-            scope: body.scope,
-            user_sub: defaultUser.sub,
-            claims: config.claims,
-        })
-        return res.send({
-            auth_token: token,
-            expires_in: lifetime,
+    if (!body.resource_token) {
+        return reply.code(400).send({
+            error: 'invalid_request',
+            error_description: 'missing resource_token',
         })
     }
 
-    // Deferred response — create pending request
-    const { id: pendingId, code } = createPendingRequest({
-        agent_id,
-        agent_jwk,
-        resource: body.resource,
-        scope: body.scope,
-        purpose: body.purpose,
-        user_sub: null,
-    })
+    const rt = await verifyResourceToken(
+        body.resource_token,
+        aauth.agent_id,
+        aauth.agent_jkt,
+    )
+    if (rt.error) {
+        return reply.code(400).send({
+            error: 'invalid_resource_token',
+            error_description: rt.error,
+        })
+    }
 
-    const location = `${ISSUER}/aauth/pending/${pendingId}`
-    const requireMode = config.require || 'interaction'
-
-    // Approval mode — auto-resolve immediately (no user interaction needed)
-    if (requireMode === 'approval') {
-        if (config.error) {
-            updatePendingRequest(pendingId, { status: 'error', error: config.error })
-        } else {
-            updatePendingRequest(pendingId, { status: 'approved', user_sub: defaultUser.sub })
+    let r3 = null
+    if (rt.r3) {
+        const fetched = await fetchR3Document({
+            r3_uri: rt.r3.uri,
+            expected_s256: rt.r3.s256,
+        })
+        if (fetched instanceof Error) {
+            return reply.code(400).send({
+                error: 'invalid_resource_token',
+                error_description: `r3 fetch failed: ${fetched.message}`,
+            })
         }
-        res.code(202)
-        res.header('Location', location)
-        res.header('Retry-After', '0')
-        res.header('Cache-Control', 'no-store')
-        return res.send({
-            status: 'pending',
-            location,
-            require: 'approval',
-        })
+        const grants = autoGrantR3({ document: fetched.document })
+        r3 = { uri: rt.r3.uri, s256: rt.r3.s256, ...grants }
     }
 
-    // Interaction mode (default) — agent must direct user to interaction endpoint
-    res.code(202)
-    res.header('Location', location)
-    res.header('Retry-After', '0')
-    res.header('Cache-Control', 'no-store')
-    res.header('AAuth', `require=interaction; code="${code}"`)
-    return res.send({
-        status: 'pending',
-        location,
-        require: 'interaction',
-        code,
+    // Deferred response
+    if (cfg.requirement) {
+        const { id, code } = createPending({
+            kind: 'token',
+            agent_id: aauth.agent_id,
+            agent_public_key: aauth.agent_public_key,
+            resource_url: rt.resource_url,
+            scope: rt.scope,
+            r3,
+            requirement: cfg.requirement,
+            justification: body.justification || null,
+        })
+        const location = `${ISSUER}/aauth/pending/${id}`
+        reply.code(202)
+        reply.header('Location', location)
+        reply.header('Retry-After', '0')
+        reply.header('Cache-Control', 'no-store')
+
+        if (cfg.requirement === 'interaction') {
+            const interactionUrl = `${ISSUER}/aauth/interaction-ui`
+            reply.header(
+                'AAuth-Requirement',
+                `requirement=interaction; url="${interactionUrl}"; code="${code}"`,
+            )
+            return reply.send({ status: 'pending', location })
+        }
+        if (cfg.requirement === 'clarification') {
+            reply.header('AAuth-Requirement', 'requirement=clarification')
+            return reply.send({
+                status: 'pending',
+                location,
+                clarification:
+                    cfg.clarification ||
+                    'Why do you need access to this resource?',
+                timeout: 120,
+            })
+        }
+        // approval
+        reply.header('AAuth-Requirement', 'requirement=approval')
+        return reply.send({ status: 'pending', location })
+    }
+
+    const issued = await issueAuthToken({
+        agent_id: aauth.agent_id,
+        agent_public_key: aauth.agent_public_key,
+        resource_url: rt.resource_url,
+        scope: rt.scope,
+        r3,
     })
+    return reply.code(200).send(issued)
 }

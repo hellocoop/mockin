@@ -1,55 +1,58 @@
-// aauth/state.js — in-memory pending authorization request state
+// aauth/state.js — in-memory pending authorization request state.
+//
+// A pending request represents work the PS has deferred (interaction,
+// approval, or clarification). In auto-approve mode mockin never creates
+// these; in deferred mode it does and resolves on the next poll.
 
 import { randomBytes } from 'crypto'
 
-const pendingRequests = new Map()
+const pending = new Map()
 
-function generateId() {
-    return randomBytes(12).toString('base64url')
-}
+const generateId = () => randomBytes(12).toString('base64url')
 
-function generateCode() {
+const generateCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let code = ''
     const bytes = randomBytes(8)
-    for (let i = 0; i < 8; i++) {
-        code += chars[bytes[i] % chars.length]
-    }
+    let code = ''
+    for (let i = 0; i < 8; i++) code += chars[bytes[i] % chars.length]
     return code
 }
 
-export function createPendingRequest(data) {
+export function createPending(data) {
     const id = generateId()
     const code = generateCode()
-    pendingRequests.set(id, {
-        ...data,
+    pending.set(id, {
+        id,
         code,
         status: 'pending',
         created: Date.now(),
+        ...data,
     })
     return { id, code }
 }
 
-export function getPendingById(id) {
-    return pendingRequests.get(id)
+export function getPending(id) {
+    return pending.get(id) || null
 }
 
 export function getPendingByCode(code) {
-    for (const [id, data] of pendingRequests) {
-        if (data.code === code) {
-            return { id, ...data }
-        }
+    for (const entry of pending.values()) {
+        if (entry.code === code) return entry
     }
     return null
 }
 
-export function updatePendingRequest(id, updates) {
-    const existing = pendingRequests.get(id)
+export function updatePending(id, updates) {
+    const existing = pending.get(id)
     if (!existing) return false
-    pendingRequests.set(id, { ...existing, ...updates })
+    pending.set(id, { ...existing, ...updates })
     return true
 }
 
+export function deletePending(id) {
+    return pending.delete(id)
+}
+
 export function clearPendingRequests() {
-    pendingRequests.clear()
+    pending.clear()
 }

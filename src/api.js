@@ -10,9 +10,24 @@ import * as oauth from './oauth.js'
 import * as command from './command.js'
 import * as aauth from './aauth/index.js'
 
+// Buffer the raw request body so HTTPSig verification can recompute the
+// content digest. Fastify reads streams once; we read it into rawBody and
+// re-feed a Readable so JSON parsing still works downstream.
+const captureRawBody = async (request, reply, payload) => {
+    const chunks = []
+    for await (const chunk of payload) chunks.push(chunk)
+    const buf = Buffer.concat(chunks)
+    request.rawBody = buf
+    return Readable.from(buf)
+}
+
 export default function (fastify) {
     fastify.register(fastifyFormbody)
-    fastify.register(cors)
+    fastify.register(cors, {
+        exposedHeaders: [
+            'AAuth-Requirement', 'Accept-Signature', 'Signature-Error', 'Location',
+        ],
+    })
     // mock APIs
     fastify.get('/authorize', authorize)
     fastify.post('/oauth/token', oauth.token)
@@ -21,25 +36,47 @@ export default function (fastify) {
     fastify.post('/oauth/userinfo', oauth.userinfo)
     fastify.get('/.well-known/openid-configuration', oauth.wellknown)
     fastify.get('/jwks', oauth.jwks)
-    // AAuth endpoints
-    fastify.get('/.well-known/aauth-issuer.json', aauth.metadata)
-    fastify.get('/aauth/jwks', aauth.jwks)
+
+    // AAuth: discovery
+    fastify.get('/.well-known/aauth-person.json', aauth.metadata)
+    fastify.get('/aauth/jwks.json', aauth.jwks)
+
+    // AAuth: token endpoint
     fastify.post('/aauth/token', {
-        preParsing: async (request, reply, payload) => {
-            const chunks = []
-            for await (const chunk of payload) {
-                chunks.push(chunk)
-            }
-            const buf = Buffer.concat(chunks)
-            request.rawBody = buf
-            return Readable.from(buf)
-        },
-        preHandler: aauth.verifySig,
+        preParsing: captureRawBody,
+        preHandler: aauth.verifyPreHandler,
     }, aauth.token)
-    fastify.get('/aauth/pending/:id', {
-        preHandler: aauth.verifySig,
-    }, aauth.pending)
-    fastify.get('/aauth/interaction', aauth.interaction)
+
+    // AAuth: pending endpoint (poll, clarify, cancel) — verification runs
+    // inside the handler since bootstrap polls use hwk and others use jwt.
+    fastify.get('/aauth/pending/:id', aauth.pendingGet)
+    fastify.post('/aauth/pending/:id', {
+        preParsing: captureRawBody,
+    }, aauth.pendingPost)
+    fastify.delete('/aauth/pending/:id', aauth.pendingDelete)
+
+    // AAuth: governance endpoints
+    fastify.post('/aauth/permission', {
+        preParsing: captureRawBody,
+        preHandler: aauth.verifyPreHandler,
+    }, aauth.permission)
+    fastify.post('/aauth/audit', {
+        preParsing: captureRawBody,
+        preHandler: aauth.verifyPreHandler,
+    }, aauth.audit)
+    fastify.post('/aauth/interaction', {
+        preParsing: captureRawBody,
+        preHandler: aauth.verifyPreHandler,
+    }, aauth.interaction)
+
+    // AAuth: bootstrap (uses hwk scheme, has its own verify path)
+    fastify.post('/aauth/bootstrap', {
+        preParsing: captureRawBody,
+    }, aauth.bootstrap)
+
+    // AAuth: user-facing consent (browser navigation, no signing)
+    fastify.get('/aauth/consent', aauth.consent)
+
     // config mock
     fastify.get('/mock', mock.get)
     fastify.get('/mock/users', mock.users)
