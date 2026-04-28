@@ -39,12 +39,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Node 24 ships npm 11.x natively, which is what OIDC trusted
+          # publishing needs. Avoids `npm install -g npm@latest` — the
+          # pre-installed npm on Node 22 runners is currently broken
+          # (`Cannot find module 'promise-retry'`) and can't even install
+          # another version of itself.
+          node-version: 24
           cache: 'npm'
-      # Pin to npm@11 (need >= 11.5.1 for OIDC trusted publishing). Avoid
-      # `npm@latest` — current bleeding-edge ships broken on Node 22 with a
-      # missing `promise-retry` transitive dep.
-      - run: npm install -g npm@11
       - run: npm ci
       - run: npm publish --provenance --access public
 
