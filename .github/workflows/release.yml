@@ -41,7 +41,10 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-      - run: npm install -g npm@latest
+      # Pin to npm@11 (need >= 11.5.1 for OIDC trusted publishing). Avoid
+      # `npm@latest` — current bleeding-edge ships broken on Node 22 with a
+      # missing `promise-retry` transitive dep.
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npm publish --provenance --access public
 
