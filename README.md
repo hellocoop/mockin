@@ -22,4 +22,8 @@ Mockin defaults to `http://127.0.0.1:3333` as the Issuer. Override by setting th
 
 The mock API can change the returned claims, simulate errors, and invalid ID Tokens.
 
+## AAuth
+
+Mockin also acts as a mock **Person Server** for [draft-hardt-aauth-protocol](https://datatracker.ietf.org/doc/draft-hardt-aauth-protocol/) — useful for testing agent clients without spinning up a real PS. Endpoints include `/aauth/bootstrap`, `/aauth/token`, `/aauth/permission`, `/aauth/audit`, `/aauth/interaction`, plus R3 (Rich Resource Requests) support. Auto-approves all consent steps in default mode. See the [docs](https://www.hello.dev/docs/mockin#aauth-agent-auth) for details.
+
 For detailed information on installation, usage, and examples, visit the [documentation](https://www.hello.dev/docs/mockin).
