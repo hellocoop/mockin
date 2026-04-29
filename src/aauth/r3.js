@@ -5,11 +5,21 @@
 // the document's `operations` to populate the auth_token's r3_granted /
 // r3_conditional claims.
 //
+// Per draft-hardt-aauth-r3 §Security Considerations, the resource MUST
+// require a valid HTTP Message Signature on R3 document URIs and reject
+// any request not signed by its AS (in our deployment, the PS). So this
+// fetch goes out HTTP-signed with sig=jwks_uri — the resource resolves
+// our key by fetching ${ISSUER}/.well-known/aauth-person.json → jwks_uri,
+// which is the same metadata we already publish for token verification.
+//
 // Mockin's PS auto-grants every operation in the document — there is no
 // user-facing consent step. Tests can override via mock.r3_grants.
 
 import { createHash } from 'crypto'
+import { fetch as sigFetch } from '@hellocoop/httpsig'
 import { getConfig } from './mock.js'
+import { privateJwk, privateKey, kid } from './keys.js'
+import { ISSUER } from '../config.js'
 
 export function sha256B64url(bytes) {
     const buf = bytes instanceof ArrayBuffer ? Buffer.from(bytes) : bytes
@@ -37,7 +47,18 @@ export async function fetchR3Document({ r3_uri, expected_s256 }) {
 
     let response
     try {
-        response = await fetch(r3_uri)
+        response = await sigFetch(r3_uri, {
+            method: 'GET',
+            signingKey: privateJwk,
+            signingCryptoKey: privateKey,
+            signatureKey: {
+                type: 'jwks_uri',
+                id: ISSUER,
+                kid,
+                dwk: 'aauth-person.json',
+            },
+            components: ['@method', '@authority', '@path', 'signature-key'],
+        })
     } catch (err) {
         return new Error(`r3 fetch error: ${err.message}`)
     }
