@@ -26,4 +26,8 @@ The mock API can change the returned claims, simulate errors, and invalid ID Tok
 
 Mockin also acts as a mock **Person Server** for [draft-hardt-aauth-protocol](https://datatracker.ietf.org/doc/draft-hardt-aauth-protocol/) — useful for testing agent clients without spinning up a real PS. Endpoints include `/aauth/bootstrap`, `/aauth/token`, `/aauth/permission`, `/aauth/audit`, `/aauth/interaction`, plus R3 (Rich Resource Requests) support. Auto-approves all consent steps in default mode. See the [docs](https://www.hello.dev/docs/mockin#aauth-agent-auth) for details.
 
+## Invite
+
+Mockin also mirrors Hellō's invite flow — useful for testing how your app handles the `events_uri` SET (Security Event Token) JWT and the `initiate_login_uri` redirect for newly invited users. Endpoints include `POST /invite`, `GET /invitation/:id`, `PUT /invitation/:id` (accept), `DELETE /invitation/:id` (decline), `DELETE /invite/:id` (retract), and `POST /invitation/:id/report` (abuse). SET JWT is RS256-signed and delivered to `events_uri` on accept. See the [docs](https://www.hello.dev/docs/mockin#invite) for details.
+
 For detailed information on installation, usage, and examples, visit the [documentation](https://www.hello.dev/docs/mockin).
