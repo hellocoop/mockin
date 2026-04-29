@@ -1,6 +1,8 @@
 // Verify the SET JWT structure and signature against the OIDC JWKS.
 // Wallet signs with its RS256 key; mockin reuses the same key (the OIDC
-// signing key at /jwks).
+// signing key at /jwks). The JWT is read from the captured POST body of
+// the events_uri webhook — the response from PUT /invitation/:id matches
+// wallet (just `{ initiate_login_url }`) and does NOT carry the SET.
 
 import { expect } from 'chai'
 import { decodeProtectedHeader, decodeJwt, jwtVerify, createLocalJWKSet } from 'jose'
@@ -47,19 +49,19 @@ describe('Invite — SET JWT', function () {
             method: 'PUT',
             url: `/invitation/${inv.id}`,
         })
-        return { inv, accept: accept.json() }
+        return { inv, accept: accept.json(), jwt: sink.captured[0]?.body }
     }
 
     it('header is RS256 with kid', async function () {
-        const { accept } = await createAndAccept()
-        const hdr = decodeProtectedHeader(accept.event)
+        const { jwt } = await createAndAccept()
+        const hdr = decodeProtectedHeader(jwt)
         expect(hdr.alg).to.equal('RS256')
         expect(hdr.kid).to.be.a('string')
     })
 
     it('payload carries iss, aud, jti, iat, and the invite/created claim', async function () {
-        const { accept } = await createAndAccept()
-        const claims = decodeJwt(accept.event)
+        const { jwt } = await createAndAccept()
+        const claims = decodeJwt(jwt)
         expect(claims.iss).to.equal(ISSUER)
         expect(claims.aud).to.equal('client-xyz')
         expect(claims.jti).to.be.a('string')
@@ -75,34 +77,33 @@ describe('Invite — SET JWT', function () {
     })
 
     it('omits role/tenant/state when not provided', async function () {
-        const { accept } = await createAndAccept({
+        const { jwt } = await createAndAccept({
             role: undefined,
             tenant: undefined,
             state: undefined,
         })
-        const data = decodeJwt(accept.event)[EVENT_CLAIM]
+        const data = decodeJwt(jwt)[EVENT_CLAIM]
         expect(data).to.not.have.property('role')
         expect(data).to.not.have.property('tenant')
         expect(data).to.not.have.property('state')
     })
 
     it('signature verifies against the OIDC JWKS', async function () {
-        const { accept } = await createAndAccept()
+        const { jwt } = await createAndAccept()
         const jwksRes = await fastify.inject({ method: 'GET', url: '/jwks' })
         const jwks = createLocalJWKSet(jwksRes.json())
-        const { payload } = await jwtVerify(accept.event, jwks)
+        const { payload } = await jwtVerify(jwt, jwks)
         expect(payload.iss).to.equal(ISSUER)
     })
 
-    it('captured POST body equals the JWT in the response', async function () {
+    it('PUT /invitation/:id response body matches wallet (no extra fields)', async function () {
         const { accept } = await createAndAccept()
-        expect(sink.captured).to.have.lengthOf(1)
-        expect(sink.captured[0].body).to.equal(accept.event)
+        expect(accept).to.have.all.keys('initiate_login_url')
     })
 
-    it('no events_uri → JWT returned in body but no fetch made', async function () {
-        const { accept } = await createAndAccept({ events_uri: undefined })
-        expect(accept.event).to.be.a('string')
+    it('without events_uri the SET is silently skipped (no fetch made)', async function () {
+        const { jwt } = await createAndAccept({ events_uri: undefined })
+        expect(jwt).to.be.undefined
         expect(sink.captured).to.have.lengthOf(0)
     })
 })

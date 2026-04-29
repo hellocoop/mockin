@@ -74,7 +74,7 @@ describe('Invite — invitation lifecycle', function () {
         expect(res.json().error).to.equal('invitation_expired')
     })
 
-    it('PUT /invitation/:id accepts → returns initiate_login_url + event JWT', async function () {
+    it('PUT /invitation/:id accepts → returns initiate_login_url; SET fired to events_uri', async function () {
         const inv = await createInvitation()
         const res = await fastify.inject({
             method: 'PUT',
@@ -86,10 +86,11 @@ describe('Invite — invitation lifecycle', function () {
         const u = new URL(data.initiate_login_url)
         expect(u.searchParams.get('login_hint')).to.equal('invitee@example.com')
         expect(u.searchParams.get('iss')).to.equal(ISSUER)
-        expect(data.event).to.be.a('string')
-        // SET JWT was POSTed to events_uri
+        // SET JWT was POSTed to events_uri (response body matches wallet — no extra fields)
+        expect(data).to.have.all.keys('initiate_login_url')
         expect(sink.captured).to.have.lengthOf(1)
         expect(sink.captured[0].headers['Content-Type']).to.equal('application/jwt')
+        expect(sink.captured[0].body).to.match(/^eyJ/)
     })
 
     it('DELETE /invitation/:id declines and removes the invitation', async function () {

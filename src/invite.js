@@ -259,9 +259,9 @@ export const invitation = async (req, res) => {
 }
 
 // ── PUT /invitation/:id — accept ─────────────────────────────────────
-// Wallet returns { initiate_login_url } and defers SET to the OIDC
-// consent step. Mockin returns the same plus { event } so tests can
-// inspect the JWT without needing a real events_uri sink.
+// Same response shape as wallet: { initiate_login_url }. The SET JWT
+// rides separately to events_uri (HTTP POST) — tests capture it via a
+// global fetch stub.
 export const accept = async (req, res) => {
     const err = mockErrFor('accept')
     if (err) return res.code(400).send({ error: err })
@@ -273,7 +273,7 @@ export const accept = async (req, res) => {
     }
     inv.status = 'accepted'
 
-    const { event } = await sendEvent(inv, inv.invitee.subject)
+    await sendEvent(inv, inv.invitee.subject)
 
     let initiateLoginUrl = null
     if (inv.initiate_login_uri) {
@@ -282,7 +282,7 @@ export const accept = async (req, res) => {
         u.searchParams.set('iss', ISSUER)
         initiateLoginUrl = u.toString()
     }
-    return res.send({ initiate_login_url: initiateLoginUrl, event })
+    return res.send({ initiate_login_url: initiateLoginUrl })
 }
 
 // ── DELETE /invitation/:id — decline ─────────────────────────────────
