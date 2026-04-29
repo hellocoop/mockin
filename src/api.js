@@ -9,6 +9,7 @@ import * as mock from './mock.js'
 import * as oauth from './oauth.js'
 import * as command from './command.js'
 import * as aauth from './aauth/index.js'
+import * as invite from './invite.js'
 
 // Buffer the raw request body so HTTPSig verification can recompute the
 // content digest. Fastify reads streams once; we read it into rawBody and
@@ -76,6 +77,20 @@ export default function (fastify) {
 
     // AAuth: user-facing consent (browser navigation, no signing)
     fastify.get('/aauth/consent', aauth.consent)
+
+    // Invite endpoints (mirrors wallet's external contract)
+    fastify.get('/invite', invite.entry)
+    fastify.post('/invite', invite.create)
+    fastify.put('/invite/:id', invite.resend)
+    fastify.delete('/invite/:id', invite.retract)
+    fastify.get('/user/invite', invite.userInvites)
+    fastify.get('/invitation/:id', invite.invitation)
+    fastify.put('/invitation/:id', invite.accept)
+    fastify.delete('/invitation/:id', invite.decline)
+    fastify.post('/invitation/:id/report', invite.report)
+    // Invite mock controls
+    fastify.get('/mock/invite', invite.mockGet)
+    fastify.put('/mock/invite', invite.mockPut)
 
     // config mock
     fastify.get('/mock', mock.get)

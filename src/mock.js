@@ -2,6 +2,7 @@
 
 import { clearState } from './authorize.js'
 import { resetConfig as resetAAuth } from './aauth/mock.js'
+import { clearAll as resetInvite } from './invite.js'
 
 const { users } = await import('./users.js')
 
@@ -93,6 +94,7 @@ const del = ( req, res ) => {
     MOCK = {}
     clearState()
     resetAAuth()
+    resetInvite()
     return res.send({MOCK})
 }
 
