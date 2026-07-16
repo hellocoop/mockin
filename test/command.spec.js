@@ -48,11 +48,37 @@ describe('Command Token Tests', function() {
             const payload = decodeJwt(command_token)
             expect(payload.iss).to.equal(ISSUER)
             expect(payload.aud).to.equal('test-app')
+            expect(payload.client_id).to.equal('test-app')
             expect(payload.command).to.equal('metadata')
             expect(payload.tenant).to.equal('personal')
             expect(payload.jti).to.be.a('string')
             expect(payload.iat).to.be.a('number')
             expect(payload.exp).to.be.a('number')
+            expect(payload.sub).to.not.exist
+            expect(payload.nonce).to.not.exist
+        })
+
+        it('should use aud param as aud and client_id as client_id claim', async function() {
+            const endpoint = 'https://rp.example.net/api/hellocoop'
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/command/mock?client_id=my-custom-app&aud=' + encodeURIComponent(endpoint),
+            })
+            const { command_token } = await response.json()
+            const payload = decodeJwt(command_token)
+            expect(payload.aud).to.equal(endpoint)
+            expect(payload.client_id).to.equal('my-custom-app')
+        })
+
+        it('should mint account commands with command and sub params', async function() {
+            const response = await fastify.inject({
+                method: 'GET',
+                url: '/command/mock?command=suspend&sub=user-123',
+            })
+            const { command_token } = await response.json()
+            const payload = decodeJwt(command_token)
+            expect(payload.command).to.equal('suspend')
+            expect(payload.sub).to.equal('user-123')
         })
 
         it('should default aud to test-app when no client_id', async function() {
