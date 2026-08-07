@@ -40,6 +40,16 @@ async function loadEntity(serverUrl, dwk) {
         throw new Error(`metadata fetch failed: ${metaRes.status}`)
     }
     const metadata = await metaRes.json()
+    // draft-hardt-httpbis-signature-key-08: the metadata document must
+    // carry an issuer byte-equal to the identifier it was fetched under.
+    if (!metadata.issuer) {
+        throw new Error('metadata missing issuer')
+    }
+    if (metadata.issuer !== serverUrl) {
+        throw new Error(
+            `metadata issuer "${metadata.issuer}" does not match "${serverUrl}"`,
+        )
+    }
     const jwksUri = metadata.jwks_uri
     if (!jwksUri) throw new Error('metadata missing jwks_uri')
     const jwksRes = await fetch(jwksUri)

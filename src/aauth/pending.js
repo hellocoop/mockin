@@ -13,6 +13,7 @@ import {
     verify as httpSigVerify,
     generateSignatureErrorHeader,
     generateAcceptSignatureHeader,
+    generateAcceptSignatureSchemeHeader,
 } from '@hellocoop/httpsig'
 
 import { ISSUER } from '../config.js'
@@ -24,8 +25,10 @@ import { getEntity, AGENT_DWK } from './entity-cache.js'
 const ACCEPT_SIG_GET = generateAcceptSignatureHeader({
     label: 'sig',
     components: ['@method', '@authority', '@path', 'signature-key'],
-    sigkey: 'jkt',
 })
+
+// Bootstrap entries poll with hwk; everything else uses jwt.
+const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['hwk', 'jwt'])
 
 async function runHttpSig(request) {
     const url = new URL(
@@ -44,9 +47,13 @@ async function runHttpSig(request) {
 }
 
 function noSig(reply) {
-    reply.code(401).header('Accept-Signature', ACCEPT_SIG_GET).send({
-        error: 'signature_required',
-    })
+    reply
+        .code(401)
+        .header('Accept-Signature', ACCEPT_SIG_GET)
+        .header('Accept-Signature-Scheme', ACCEPT_SIG_SCHEME)
+        .send({
+            error: 'signature_required',
+        })
 }
 
 async function verifyForEntry(request, reply, entry) {

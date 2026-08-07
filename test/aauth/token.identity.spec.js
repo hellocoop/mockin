@@ -54,7 +54,7 @@ describe('AAuth /aauth/token — identity flow (no R3)', function () {
         expect(data.expires_in).to.equal(3600)
 
         const header = decodeProtectedHeader(data.auth_token)
-        expect(header.alg).to.equal('EdDSA')
+        expect(header.alg).to.equal('Ed25519')
         expect(header.typ).to.equal('aa-auth+jwt')
         expect(header.kid).to.be.a('string')
 

@@ -14,7 +14,9 @@ export const verifySig = async (request, reply) => {
         body: request.rawBody,
     }
 
-    const result = await verify(verifyRequest, { strictAAuth: false })
+    // httpsig 2.0 removed strictAAuth — signature-key coverage is always
+    // enforced now.
+    const result = await verify(verifyRequest)
 
     if (!result.verified) {
         reply.code(401).send({

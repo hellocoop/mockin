@@ -16,6 +16,7 @@ import {
     verify as httpSigVerify,
     generateSignatureErrorHeader,
     generateAcceptSignatureHeader,
+    generateAcceptSignatureSchemeHeader,
 } from '@hellocoop/httpsig'
 
 import { getEntity, AGENT_DWK } from './entity-cache.js'
@@ -23,14 +24,16 @@ import { getEntity, AGENT_DWK } from './entity-cache.js'
 const ACCEPT_SIG_BODY = generateAcceptSignatureHeader({
     label: 'sig',
     components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
-    sigkey: 'jkt',
 })
 
 const ACCEPT_SIG_NOBODY = generateAcceptSignatureHeader({
     label: 'sig',
     components: ['@method', '@authority', '@path', 'signature-key'],
-    sigkey: 'jkt',
 })
+
+// -08 replaced Accept-Signature's sigkey parameter with a separate
+// Accept-Signature-Scheme header. These endpoints require sig=jwt.
+const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['jwt'])
 
 function fail(status, body, headers = {}) {
     return { ok: false, status, body, headers }
@@ -60,7 +63,10 @@ export async function verifyRequest(request) {
             return fail(
                 401,
                 { error: 'signature_required' },
-                { 'Accept-Signature': hasBody ? ACCEPT_SIG_BODY : ACCEPT_SIG_NOBODY },
+                {
+                    'Accept-Signature': hasBody ? ACCEPT_SIG_BODY : ACCEPT_SIG_NOBODY,
+                    'Accept-Signature-Scheme': ACCEPT_SIG_SCHEME,
+                },
             )
         }
         const headers = {}

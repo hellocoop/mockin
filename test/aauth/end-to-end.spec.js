@@ -25,11 +25,13 @@ describe('AAuth bootstrap end-to-end', function () {
 
     it('bootstrap_token verifies a sig=jwt request the agent signs', async function () {
         // Step 1: simulate the browser's ephemeral key.
-        const ephemeralKp = await generateKeyPair('EdDSA', { crv: 'Ed25519' })
+        const ephemeralKp = await generateKeyPair('Ed25519')
         const ephemeralPublicJwk = await exportJWK(ephemeralKp.publicKey)
-        // Strip alg the way browser exportKey would not include it.
-        delete ephemeralPublicJwk.alg
+        // Browser exportKey does not include alg; httpsig 2.0 (RFC 9864)
+        // requires it, so a browser agent must stamp it — as we do here.
+        ephemeralPublicJwk.alg = 'Ed25519'
         const ephemeralPrivateJwk = await exportJWK(ephemeralKp.privateKey)
+        ephemeralPrivateJwk.alg = 'Ed25519'
 
         // Step 2: hit mockin /aauth/bootstrap with HWK signed by this key.
         // We can't reuse helpers.signedHwkRequest directly because it uses

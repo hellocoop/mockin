@@ -45,7 +45,7 @@ describe('AAuth Metadata & JWKS', function () {
             const key = data.keys[0]
             expect(key.kty).to.equal('OKP')
             expect(key.crv).to.equal('Ed25519')
-            expect(key.alg).to.equal('EdDSA')
+            expect(key.alg).to.equal('Ed25519')
             expect(key.kid).to.be.a('string')
             expect(key.use).to.equal('sig')
             expect(key).to.not.have.property('d') // private key never exposed

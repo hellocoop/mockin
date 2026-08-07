@@ -120,7 +120,7 @@ export async function issueAuthToken({
     }
 
     const auth_token = await new SignJWT(tokenPayload)
-        .setProtectedHeader({ alg: 'EdDSA', typ: 'aa-auth+jwt', kid })
+        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-auth+jwt', kid })
         .setJti(randomUUID())
         .sign(privateKey)
 

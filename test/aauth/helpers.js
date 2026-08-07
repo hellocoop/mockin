@@ -23,10 +23,10 @@ import { ISSUER } from '../../src/config.js'
 
 // ── Fake server identities ─────────────────────────────────────────────
 
-async function mintServer(url, kid, alg = 'EdDSA') {
-    const { publicKey, privateKey } = await generateKeyPair(alg, {
-        crv: 'Ed25519',
-    })
+// httpsig 2.0 (RFC 9864): alg must be fully specified — 'Ed25519', never
+// the polymorphic 'EdDSA'.
+async function mintServer(url, kid, alg = 'Ed25519') {
+    const { publicKey, privateKey } = await generateKeyPair(alg)
     const publicJwk = await exportJWK(publicKey)
     publicJwk.kid = kid
     publicJwk.alg = alg
@@ -44,11 +44,11 @@ export const agentServer = await mintServer(AGENT_SERVER_URL, 'as-key-1')
 export const resourceServer = await mintServer(RESOURCE_SERVER_URL, 'rs-key-1')
 
 // Ephemeral key the "agent" uses to sign HTTP requests.
-const ephemeralKp = await generateKeyPair('EdDSA', { crv: 'Ed25519' })
+const ephemeralKp = await generateKeyPair('Ed25519')
 export const ephemeralPublicJwk = await exportJWK(ephemeralKp.publicKey)
-ephemeralPublicJwk.alg = 'EdDSA'
+ephemeralPublicJwk.alg = 'Ed25519'
 export const ephemeralPrivateJwk = await exportJWK(ephemeralKp.privateKey)
-ephemeralPrivateJwk.alg = 'EdDSA'
+ephemeralPrivateJwk.alg = 'Ed25519'
 
 export const ephemeralJkt = await calculateJwkThumbprint(ephemeralPublicJwk)
 
@@ -108,7 +108,7 @@ export async function mintAgentToken({
         exp: now + ttl,
         jti: randomUUID(),
     })
-        .setProtectedHeader({ alg: 'EdDSA', typ: 'aa-agent+jwt', kid: agentServer.kid })
+        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-agent+jwt', kid: agentServer.kid })
         .sign(agentServer.privateKey)
 }
 
@@ -136,7 +136,7 @@ export async function mintResourceToken({
     if (r3_uri) payload.r3_uri = r3_uri
     if (r3_s256) payload.r3_s256 = r3_s256
     return await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'EdDSA', typ: 'aa-resource+jwt', kid: resourceServer.kid })
+        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-resource+jwt', kid: resourceServer.kid })
         .sign(resourceServer.privateKey)
 }
 

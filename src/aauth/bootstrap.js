@@ -21,6 +21,7 @@ import {
     verify as httpSigVerify,
     generateSignatureErrorHeader,
     generateAcceptSignatureHeader,
+    generateAcceptSignatureSchemeHeader,
 } from '@hellocoop/httpsig'
 
 import { ISSUER } from '../config.js'
@@ -32,8 +33,10 @@ import { createPending, updatePending } from './state.js'
 const ACCEPT_SIG = generateAcceptSignatureHeader({
     label: 'sig',
     components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
-    sigkey: 'jkt',
 })
+
+// Bootstrap accepts hwk (initial) or jwt (completion announcement).
+const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['hwk', 'jwt'])
 
 const BOOTSTRAP_TOKEN_TTL = 300 // 5 minutes
 
@@ -56,7 +59,7 @@ export async function issueBootstrapToken({ agent_server, ephemeral_jwk }) {
         exp: iat + BOOTSTRAP_TOKEN_TTL,
     }
     const bootstrap_token = await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'EdDSA', typ: 'aa-bootstrap+jwt', kid })
+        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-bootstrap+jwt', kid })
         .setJti(randomUUID())
         .sign(privateKey)
     return { bootstrap_token, expires_in: BOOTSTRAP_TOKEN_TTL }
@@ -85,6 +88,7 @@ export const bootstrap = async (req, reply) => {
             return reply
                 .code(401)
                 .header('Accept-Signature', ACCEPT_SIG)
+                .header('Accept-Signature-Scheme', ACCEPT_SIG_SCHEME)
                 .send({ error: 'signature_required' })
         }
         const headers = {}
@@ -122,13 +126,13 @@ export const bootstrap = async (req, reply) => {
             error_description: 'bootstrap requires hwk or jwt Signature-Key scheme',
         })
     }
-    // Keep cnf.jwk minimal — { kty, crv, x } for Ed25519. Setting alg
-    // here causes some Web Crypto implementations (Cloudflare Workers in
-    // particular) to reject importKey when the value doesn't match what
-    // they expect for OKP/Ed25519 ('Ed25519' vs 'EdDSA' is a known
-    // mismatch). The runtime can derive the algorithm from kty + crv.
-    const { kty, crv, x } = sigResult.publicKey
-    const ephemeral_jwk = { kty, crv, x }
+    // Keep cnf.jwk minimal — { kty, crv, x, alg }. httpsig 2.0 (RFC 9864)
+    // requires every JWK to carry a fully-specified alg; the hwk scheme now
+    // transmits it, so sigResult.publicKey.alg is e.g. 'Ed25519' (never the
+    // polymorphic 'EdDSA', which 2.0 rejects). Verifiers that later use
+    // this cnf.jwk need it, so it stays in.
+    const { kty, crv, x, alg } = sigResult.publicKey
+    const ephemeral_jwk = { kty, crv, x, alg }
 
     const body = req.body || {}
     if (!body.agent_server || typeof body.agent_server !== 'string') {
