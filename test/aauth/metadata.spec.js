@@ -17,11 +17,25 @@ describe('AAuth Metadata & JWKS', function () {
             const data = response.json()
             expect(data.issuer).to.equal(ISSUER)
             expect(data.jwks_uri).to.equal(`${ISSUER}/aauth/jwks.json`)
-            expect(data.token_endpoint).to.equal(`${ISSUER}/aauth/token`)
+            // -11 renamed token_endpoint → auth_token_endpoint and made
+            // person_token_endpoint REQUIRED of every PS.
+            expect(data.auth_token_endpoint).to.equal(`${ISSUER}/aauth/token`)
+            expect(data.person_token_endpoint).to.equal(`${ISSUER}/aauth/person`)
+            expect(data).to.not.have.property('token_endpoint')
             expect(data.permission_endpoint).to.equal(`${ISSUER}/aauth/permission`)
             expect(data.audit_endpoint).to.equal(`${ISSUER}/aauth/audit`)
             expect(data.interaction_endpoint).to.equal(`${ISSUER}/aauth/interaction`)
             expect(data.bootstrap_endpoint).to.equal(`${ISSUER}/aauth/bootstrap`)
+        })
+
+        it('publishes both token endpoints @aauth/bootstrap 2.0.0 requires', async function () {
+            const data = (await fastify.inject({
+                method: 'GET',
+                url: '/.well-known/aauth-person.json',
+            })).json()
+            for (const field of ['auth_token_endpoint', 'person_token_endpoint']) {
+                expect(data[field], field).to.be.a('string')
+            }
         })
 
         it('sets Cache-Control', async function () {

@@ -10,8 +10,8 @@ import api from '../../src/api.js'
 import {
     installMocks,
     mintAgentToken,
-    mintResourceToken,
     signedRequest,
+    personAndResourceToken,
 } from './helpers.js'
 
 const fastify = Fastify()
@@ -27,8 +27,9 @@ async function setRequirement(req) {
 }
 
 async function startTokenRequest() {
-    const agentToken = await mintAgentToken()
-    const resourceToken = await mintResourceToken({ scope: 'openid email' })
+    const { agentToken, resourceToken } = await personAndResourceToken(fastify, {
+        resource: { scope: 'openid email' },
+    })
     const { headers, payload } = await signedRequest({
         method: 'POST',
         path: '/aauth/token',

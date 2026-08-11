@@ -11,8 +11,13 @@ import { SignJWT } from 'jose'
 
 import { ISSUER } from '../config.js'
 import { privateKey, kid } from './keys.js'
+import { SIGNING_ALG } from './algorithms.js'
+import { directedSub } from './subject.js'
 import { getConfig } from './mock.js'
 import defaultUser from '../users.js'
+
+// "Auth tokens MUST NOT have a lifetime exceeding 1 hour."
+const MAX_AUTH_TOKEN_TTL = 3600
 
 const IDENTITY_SCOPES = new Set([
     'openid', 'profile', 'name', 'nickname', 'given_name', 'family_name',
@@ -75,22 +80,35 @@ function releaseFor(identityScopes) {
 }
 
 /**
+ * -11 §Auth Token Structure. REQUIRED: iss, dwk, aud, jti, ps, sub, cnf,
+ * iat, exp. No `agent` claim, no `act`, no delegation chain — the resource
+ * enforces against `sub` and `scope`, and `cnf` binds the key.
+ *
  * @param {object} args
- * @param {string} args.agent_id
- * @param {object} args.agent_public_key   ephemeral JWK for cnf
- * @param {string} args.resource_url       resource_token.iss
- * @param {string} args.scope              raw scope string from resource_token
- * @param {object} [args.r3]               { uri, s256, granted, conditional }
+ * @param {object} args.agent_public_key    ephemeral JWK for cnf
+ * @param {string} args.resource_url        resource_token.iss — becomes `aud`
+ * @param {string} args.scope               raw scope string from resource_token
+ * @param {string} [args.sub]               copied from the resource token, which
+ *                                          the PS verified against the person
+ *                                          token it issued. Falls back to the
+ *                                          same derivation the person token used.
+ * @param {string} [args.mission_s256]      copied from the resource token
+ * @param {string} [args.tenant]            copied from the resource token
+ * @param {string} [args.account]           copied from the resource token
+ * @param {object} [args.r3]                { uri, s256, granted, per_call }
  */
 export async function issueAuthToken({
-    agent_id,
     agent_public_key,
     resource_url,
     scope,
+    sub,
+    mission_s256,
+    tenant,
+    account,
     r3,
 }) {
     const cfg = getConfig()
-    const lifetime = cfg.token_lifetime || 3600
+    const lifetime = Math.min(cfg.token_lifetime || MAX_AUTH_TOKEN_TTL, MAX_AUTH_TOKEN_TTL)
     const { identity, resource } = classifyScopes(scope)
 
     const release = releaseFor(identity)
@@ -100,10 +118,10 @@ export async function issueAuthToken({
     const tokenPayload = {
         iss: ISSUER,
         dwk: 'aauth-person.json',
-        sub: defaultUser.sub,
+        ps: ISSUER,
+        // Same value the person token carried for this aud — see subject.js.
+        sub: sub || directedSub(resource_url),
         aud: resource_url,
-        agent: agent_id,
-        act: { sub: agent_id },
         scope: resource.join(' '),
         cnf: agent_public_key ? { jwk: agent_public_key } : undefined,
         ...release,
@@ -112,15 +130,20 @@ export async function issueAuthToken({
         exp: iat + lifetime,
     }
 
+    if (mission_s256) tokenPayload.mission_s256 = mission_s256
+    if (tenant) tokenPayload.tenant = tenant
+    if (account) tokenPayload.account = account
+
     if (r3) {
         if (r3.uri) tokenPayload.r3_uri = r3.uri
         if (r3.s256) tokenPayload.r3_s256 = r3.s256
         if (r3.granted) tokenPayload.r3_granted = r3.granted
-        if (r3.conditional) tokenPayload.r3_conditional = r3.conditional
+        // R3 -02 renamed r3_conditional → r3_per_call.
+        if (r3.per_call) tokenPayload.r3_per_call = r3.per_call
     }
 
     const auth_token = await new SignJWT(tokenPayload)
-        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-auth+jwt', kid })
+        .setProtectedHeader({ alg: SIGNING_ALG, typ: 'aa-auth+jwt', kid })
         .setJti(randomUUID())
         .sign(privateKey)
 

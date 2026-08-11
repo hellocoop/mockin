@@ -24,7 +24,18 @@ The mock API can change the returned claims, simulate errors, and invalid ID Tok
 
 ## AAuth
 
-Mockin also acts as a mock **Person Server** for [draft-hardt-aauth-protocol](https://datatracker.ietf.org/doc/draft-hardt-aauth-protocol/) — useful for testing agent clients without spinning up a real PS. Endpoints include `/aauth/bootstrap`, `/aauth/token`, `/aauth/permission`, `/aauth/audit`, `/aauth/interaction`, plus R3 (Rich Resource Requests) support. Auto-approves all consent steps in default mode. See the [docs](https://www.hello.dev/docs/mockin#aauth-agent-auth) for details.
+Mockin also acts as a mock **Person Server** for [draft-hardt-oauth-aauth-protocol](https://datatracker.ietf.org/doc/draft-hardt-oauth-aauth-protocol/) — useful for testing agent clients without spinning up a real PS. Endpoints include `/aauth/bootstrap`, `/aauth/person` (`person_token_endpoint`), `/aauth/token` (`auth_token_endpoint`), `/aauth/permission`, `/aauth/audit`, `/aauth/interaction`, plus R3 (Rich Resource Requests) support. Auto-approves all consent steps in default mode. See the [docs](https://www.hello.dev/docs/mockin#aauth-agent-auth) for details.
+
+The mock API at `PUT /mock/aauth` switches the simulated behaviours:
+
+| Key | Effect |
+|-----|--------|
+| `requirement` | `interaction` \| `approval` \| `clarification` — defers `/aauth/token` with a `202` |
+| `person_requirement` | `interaction` \| `approval` — defers `/aauth/person` with a `202` |
+| `auto_approve` | `false` makes a deferred `interaction` wait for `GET /aauth/consent?code=…` instead of resolving on the first poll |
+| `error` / `error_endpoint` | inject a token endpoint error code, optionally scoped to `token`, `person`, `bootstrap` or `permission` |
+| `token_lifetime`, `claims`, `r3_grants`, `tenant` | shape the issued tokens (`r3_grants` takes `{ granted, per_call }`) |
+| `require_body_signing` | `false` accepts a body signature that does not cover `content-digest` and `content-type` |
 
 ## Invite
 

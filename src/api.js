@@ -43,11 +43,17 @@ export default function (fastify) {
     fastify.get('/.well-known/aauth-person.json', aauth.metadata)
     fastify.get('/aauth/jwks.json', aauth.jwks)
 
-    // AAuth: token endpoint
+    // AAuth: auth token endpoint (metadata: auth_token_endpoint)
     fastify.post('/aauth/token', {
         preParsing: captureRawBody,
         preHandler: aauth.verifyPreHandler,
     }, aauth.token)
+
+    // AAuth: person token endpoint (metadata: person_token_endpoint)
+    fastify.post('/aauth/person', {
+        preParsing: captureRawBody,
+        preHandler: aauth.verifyPreHandler,
+    }, aauth.person)
 
     // AAuth: pending endpoint (poll, clarify, cancel) — verification runs
     // inside the handler since bootstrap polls use hwk and others use jwt.

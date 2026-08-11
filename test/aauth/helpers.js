@@ -15,7 +15,7 @@
 
 import { createHash, randomUUID } from 'crypto'
 import {
-    generateKeyPair, exportJWK, SignJWT, calculateJwkThumbprint,
+    generateKeyPair, exportJWK, SignJWT, calculateJwkThumbprint, decodeJwt,
 } from 'jose'
 import { fetch as httpsigFetch } from '@hellocoop/httpsig'
 
@@ -62,12 +62,14 @@ export const DEFAULT_AGENT_ID = `aauth:agent@${new URL(AGENT_SERVER_URL).host}`
 
 export async function installMocks(fastify) {
     await fastify.inject({ method: 'DELETE', url: '/mock' })
+    // Agent and resource metadata publish `name`, never `client_name` —
+    // the RFC 7591 borrowing appears nowhere in the AAuth specs.
     const trusted = {
         [AGENT_SERVER_URL]: {
             metadata: {
                 issuer: AGENT_SERVER_URL,
                 jwks_uri: `${AGENT_SERVER_URL}/.well-known/jwks.json`,
-                client_name: 'Mock Agent Server',
+                name: 'Mock Agent Server',
             },
             jwks: { keys: [agentServer.publicJwk] },
         },
@@ -75,7 +77,7 @@ export async function installMocks(fastify) {
             metadata: {
                 issuer: RESOURCE_SERVER_URL,
                 jwks_uri: `${RESOURCE_SERVER_URL}/.well-known/jwks.json`,
-                client_name: 'Mock Resource Server',
+                name: 'Mock Resource Server',
                 scope_descriptions: { whoami: 'Read identity' },
             },
             jwks: { keys: [resourceServer.publicJwk] },
@@ -95,10 +97,14 @@ export async function mintAgentToken({
     sub = DEFAULT_AGENT_ID,
     ps = ISSUER,
     cnf_jwk = ephemeralPublicJwk,
+    parent_agent = undefined,
     ttl = 600,
+    // -10 forbids the polymorphic 'EdDSA'; tests override this to prove
+    // mockin declines it.
+    alg = 'Ed25519',
 } = {}) {
     const now = Math.floor(Date.now() / 1000)
-    return await new SignJWT({
+    const payload = {
         iss: AGENT_SERVER_URL,
         dwk: 'aauth-agent.json',
         sub,
@@ -107,37 +113,127 @@ export async function mintAgentToken({
         iat: now,
         exp: now + ttl,
         jti: randomUUID(),
-    })
-        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-agent+jwt', kid: agentServer.kid })
+    }
+    if (parent_agent) payload.parent_agent = parent_agent
+    return await new SignJWT(payload)
+        .setProtectedHeader({ alg, typ: 'aa-agent+jwt', kid: agentServer.kid })
         .sign(agentServer.privateKey)
 }
 
+// -11 §Resource Token Structure: `ps`, `sub` and `person_token_jti` are
+// copied from the person token the resource verified, `agent_jkt` binds
+// the agent's key. There is no `agent` claim any more.
 export async function mintResourceToken({
     scope = 'openid email',
     aud = ISSUER,
-    agent = DEFAULT_AGENT_ID,
+    ps = ISSUER,
+    sub,
+    person_token_jti,
     agent_jkt = ephemeralJkt,
+    mission_s256 = null,
+    tenant = null,
+    account = null,
     r3_uri = null,
     r3_s256 = null,
     ttl = 300,
+    personToken = null,
 } = {}) {
+    // Given a person token, copy from it — the normal case. Pass `false`
+    // for any field to omit it deliberately (what a resource stripping a
+    // claim would produce), or a value to make it disagree.
+    if (personToken) {
+        const pt = decodeJwt(personToken)
+        sub = sub ?? pt.sub
+        person_token_jti = person_token_jti ?? pt.jti
+        ps = ps ?? pt.iss
+        if (mission_s256 === null && pt.mission_s256) mission_s256 = pt.mission_s256
+        if (tenant === null && pt.tenant) tenant = pt.tenant
+    }
     const now = Math.floor(Date.now() / 1000)
     const payload = {
         iss: RESOURCE_SERVER_URL,
         dwk: 'aauth-resource.json',
         aud,
-        agent,
+        ps,
+        sub,
+        person_token_jti,
         agent_jkt,
         scope,
         iat: now,
         exp: now + ttl,
         jti: randomUUID(),
     }
+    for (const k of ['ps', 'sub', 'person_token_jti']) {
+        if (!payload[k]) delete payload[k]
+    }
+    if (mission_s256) payload.mission_s256 = mission_s256
+    if (tenant) payload.tenant = tenant
+    if (account) payload.account = account
     if (r3_uri) payload.r3_uri = r3_uri
     if (r3_s256) payload.r3_s256 = r3_s256
     return await new SignJWT(payload)
         .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-resource+jwt', kid: resourceServer.kid })
         .sign(resourceServer.privateKey)
+}
+
+// ── Person tokens ──────────────────────────────────────────────────────
+//
+// Almost every /aauth/token test now needs one first: the PS will only
+// accept a resource token whose person_token_jti names a person token it
+// issued (§Resource Token Verification step 6).
+
+export async function requestPersonToken(fastify, {
+    resource = RESOURCE_SERVER_URL,
+    agentToken,
+    ...rest
+} = {}) {
+    const token = agentToken || (await mintAgentToken())
+    const { headers, payload } = await signedRequest({
+        method: 'POST',
+        path: '/aauth/person',
+        body: { resource, ...rest },
+        agentToken: token,
+    })
+    return fastify.inject({
+        method: 'POST',
+        url: '/aauth/person',
+        headers,
+        payload,
+    })
+}
+
+/** 200-path convenience: returns { person_token, claims, agentToken }. */
+export async function getPersonToken(fastify, options = {}) {
+    const agentToken = options.agentToken || (await mintAgentToken())
+    const res = await requestPersonToken(fastify, { ...options, agentToken })
+    if (res.statusCode !== 200) {
+        throw new Error(
+            `person token request failed: ${res.statusCode} ${res.payload}`,
+        )
+    }
+    const { person_token, expires_in } = res.json()
+    return {
+        person_token,
+        expires_in,
+        claims: decodeJwt(person_token),
+        agentToken,
+    }
+}
+
+/**
+ * The common setup: get a person token, then a resource token copied from
+ * it. Overrides let a test corrupt exactly one copied claim.
+ */
+export async function personAndResourceToken(fastify, {
+    person = {},
+    resource = {},
+} = {}) {
+    const { person_token, claims, agentToken } = await getPersonToken(fastify, person)
+    const resourceToken = await mintResourceToken({
+        personToken: person_token,
+        ...resource,
+    })
+    return { agentToken, person_token, personClaims: claims, resourceToken }
 }
 
 // ── R3 doc helpers ─────────────────────────────────────────────────────
@@ -174,7 +270,17 @@ export async function registerR3Document(fastify, r3_uri, document) {
 
 const issuerHost = new URL(ISSUER).host
 
-async function sigHeaders({ method, path, body, signatureKey }) {
+// -11: a request carrying a body to a PS endpoint MUST sign
+// `content-digest` and `content-type`. httpsig only generates
+// Content-Digest when the covered-component list names it, and its
+// DEFAULT_COMPONENTS_BODY does not — so pass the list explicitly.
+export const PS_BODY_COMPONENTS = [
+    '@method', '@authority', '@path',
+    'content-type', 'content-digest',
+    'signature-key',
+]
+
+async function sigHeaders({ method, path, body, signatureKey, components }) {
     const url = `${ISSUER}${path}`
     const opts = {
         method,
@@ -185,6 +291,9 @@ async function sigHeaders({ method, path, body, signatureKey }) {
     if (body !== undefined) {
         opts.headers = { 'content-type': 'application/json' }
         opts.body = body
+        opts.components = components || PS_BODY_COMPONENTS
+    } else if (components) {
+        opts.components = components
     }
     const { headers } = await httpsigFetch(url, opts)
     const out = {}
@@ -193,9 +302,9 @@ async function sigHeaders({ method, path, body, signatureKey }) {
     return out
 }
 
-// JWT scheme — token, pending, permission, audit, interaction.
+// JWT scheme — person, token, pending, permission, audit, interaction.
 export async function signedRequest({
-    method, path, body, agentToken,
+    method, path, body, agentToken, components,
 }) {
     const bodyStr = body === undefined
         ? undefined
@@ -204,13 +313,14 @@ export async function signedRequest({
         method,
         path,
         body: bodyStr,
+        components,
         signatureKey: { type: 'jwt', jwt: agentToken },
     })
     return { headers, payload: bodyStr }
 }
 
 // HWK scheme — bootstrap.
-export async function signedHwkRequest({ method, path, body }) {
+export async function signedHwkRequest({ method, path, body, components }) {
     const bodyStr = body === undefined
         ? undefined
         : typeof body === 'string' ? body : JSON.stringify(body)
@@ -218,6 +328,7 @@ export async function signedHwkRequest({ method, path, body }) {
         method,
         path,
         body: bodyStr,
+        components,
         signatureKey: { type: 'hwk' },
     })
     return { headers, payload: bodyStr }

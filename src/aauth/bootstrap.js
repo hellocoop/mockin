@@ -15,7 +15,7 @@
 // don't want to drive the full redirect can flip mock.auto_approve = true
 // to short-circuit and pre-mark the pending entry as approved on creation.
 
-import { randomUUID, createHash } from 'crypto'
+import { randomUUID } from 'crypto'
 import { SignJWT } from 'jose'
 import {
     verify as httpSigVerify,
@@ -26,13 +26,21 @@ import {
 
 import { ISSUER } from '../config.js'
 import { privateKey, kid } from './keys.js'
+import { SIGNING_ALG } from './algorithms.js'
+import { directedSub } from './subject.js'
 import { getConfig, mockErrorFor } from './mock.js'
-import defaultUser from '../users.js'
+import { checkBodySigning } from './verify-request.js'
 import { createPending, updatePending } from './state.js'
 
+// -11: a body-carrying request to a PS endpoint covers content-digest and
+// content-type on top of the base profile.
 const ACCEPT_SIG = generateAcceptSignatureHeader({
     label: 'sig',
-    components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
+    components: [
+        '@method', '@authority', '@path',
+        'content-type', 'content-digest',
+        'signature-key',
+    ],
 })
 
 // Bootstrap accepts hwk (initial) or jwt (completion announcement).
@@ -40,26 +48,20 @@ const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['hwk', 'jwt'])
 
 const BOOTSTRAP_TOKEN_TTL = 300 // 5 minutes
 
-// Pairwise sub directed at agent_server: hash(user.sub || agent_server).
-function directedSub(userSub, agentServer) {
-    return createHash('sha256')
-        .update(`${userSub}|${agentServer}`)
-        .digest('base64url')
-}
-
 export async function issueBootstrapToken({ agent_server, ephemeral_jwk }) {
     const iat = Math.floor(Date.now() / 1000)
     const payload = {
         iss: ISSUER,
         dwk: 'aauth-person.json',
         aud: agent_server,
-        sub: directedSub(defaultUser.sub, agent_server),
+        // Same derivation as person and auth tokens — see subject.js.
+        sub: directedSub(agent_server),
         cnf: { jwk: ephemeral_jwk },
         iat,
         exp: iat + BOOTSTRAP_TOKEN_TTL,
     }
     const bootstrap_token = await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-bootstrap+jwt', kid })
+        .setProtectedHeader({ alg: SIGNING_ALG, typ: 'aa-bootstrap+jwt', kid })
         .setJti(randomUUID())
         .sign(privateKey)
     return { bootstrap_token, expires_in: BOOTSTRAP_TOKEN_TTL }
@@ -102,6 +104,15 @@ export const bootstrap = async (req, reply) => {
             error: 'signature_verification_failed',
             error_description: sigResult.error,
         })
+    }
+
+    // -11: the body signature must cover content-digest and content-type.
+    const bodyFailure = checkBodySigning(req, sigResult)
+    if (bodyFailure) {
+        for (const [k, v] of Object.entries(bodyFailure.headers || {})) {
+            reply.header(k, v)
+        }
+        return reply.code(bodyFailure.status).send(bodyFailure.body)
     }
 
     // Two valid request flavours per the wallet PS pattern:

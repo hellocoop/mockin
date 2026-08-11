@@ -7,7 +7,6 @@
 // Verification therefore runs inside the handler — after we look up the
 // entry — rather than in a generic preHandler.
 
-import * as jose from 'jose'
 import { calculateJwkThumbprint } from 'jose'
 import {
     verify as httpSigVerify,
@@ -19,8 +18,10 @@ import {
 import { ISSUER } from '../config.js'
 import { getPending, updatePending, deletePending } from './state.js'
 import { issueAuthToken } from './issue-auth-token.js'
+import { issuePersonToken } from './issue-person-token.js'
 import { issueBootstrapToken } from './bootstrap.js'
-import { getEntity, AGENT_DWK } from './entity-cache.js'
+import { verifyAgentToken } from './verify-agent-token.js'
+import { checkBodySigning } from './verify-request.js'
 
 const ACCEPT_SIG_GET = generateAcceptSignatureHeader({
     label: 'sig',
@@ -74,6 +75,19 @@ async function verifyForEntry(request, reply, entry) {
         })
     }
 
+    // -11: a body-carrying request to a PS endpoint covers content-digest
+    // and content-type (POST /aauth/pending/:id carries a clarification
+    // response or an updated resource token).
+    if (request.method === 'POST') {
+        const bodyFailure = checkBodySigning(request, sigResult)
+        if (bodyFailure) {
+            for (const [k, v] of Object.entries(bodyFailure.headers || {})) {
+                reply.header(k, v)
+            }
+            return reply.code(bodyFailure.status).send(bodyFailure.body)
+        }
+    }
+
     if (entry.kind === 'bootstrap') {
         if (sigResult.keyType !== 'hwk') {
             return reply.code(401).send({
@@ -99,33 +113,11 @@ async function verifyForEntry(request, reply, entry) {
         })
     }
     const { header, payload, raw } = sigResult.jwt
-    if (header.typ !== 'aa-agent+jwt') {
+    const verified = await verifyAgentToken(raw, { header, payload })
+    if (verified.error) {
         return reply.code(401).send({
             error: 'invalid_jwt',
-            error_description: `expected aa-agent+jwt, got ${header.typ}`,
-        })
-    }
-    if (!payload.iss) {
-        return reply.code(401).send({
-            error: 'invalid_jwt',
-            error_description: 'agent_token missing iss',
-        })
-    }
-    let entity
-    try {
-        entity = await getEntity(payload.iss, payload.dwk || AGENT_DWK)
-    } catch (err) {
-        return reply.code(401).send({
-            error: 'invalid_jwt',
-            error_description: `agent server discovery failed: ${err.message}`,
-        })
-    }
-    try {
-        await jose.jwtVerify(raw, jose.createLocalJWKSet(entity.jwks))
-    } catch (err) {
-        return reply.code(401).send({
-            error: 'invalid_jwt',
-            error_description: `agent_token signature: ${err.message}`,
+            error_description: verified.error,
         })
     }
     return null // ok
@@ -163,8 +155,12 @@ export const pendingGet = async (req, reply) => {
                 timeout: 120,
             })
         }
-        // Bootstrap polls before consent — keep them pending.
-        if (entry.kind === 'bootstrap' && !entry.preApprove) {
+        // requirement=interaction means the person has to visit the URL
+        // we handed the agent. Until /aauth/consent?code=… is hit, the
+        // entry stays pending — unless mock.auto_approve pre-marked it
+        // approved at creation, which is the default and what every
+        // auto-approve test relies on. Bootstrap works the same way.
+        if (entry.kind === 'bootstrap' || entry.requirement === 'interaction') {
             const location = `${ISSUER}/aauth/pending/${entry.id}`
             reply.code(202)
             reply.header('Location', location)
@@ -172,18 +168,21 @@ export const pendingGet = async (req, reply) => {
             reply.header('Cache-Control', 'no-store')
             return reply.send({ status: 'pending', location })
         }
-        // Default auto-resolve path for token / approval / interaction.
+        // Approval: the PS reaches the person out of band, so the next
+        // poll resolves.
         updatePending(entry.id, { status: 'approved' })
     }
 
     if (entry.kind === 'token') {
-        const issued = await issueAuthToken({
-            agent_id: entry.agent_id,
-            agent_public_key: entry.agent_public_key,
-            resource_url: entry.resource_url,
-            scope: entry.scope,
-            r3: entry.r3,
-        })
+        const issued = await issueAuthToken(entry.issueArgs)
+        deletePending(entry.id)
+        return reply.code(200).send(issued)
+    }
+
+    // Deferred person token — the consent path the fleet needs and can
+    // test nowhere else. Resolves exactly like the auth token above.
+    if (entry.kind === 'person') {
+        const issued = await issuePersonToken(entry.issueArgs)
         deletePending(entry.id)
         return reply.code(200).send(issued)
     }

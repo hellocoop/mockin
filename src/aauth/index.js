@@ -3,6 +3,7 @@
 export { metadata } from './metadata.js'
 export { jwks } from './jwks.js'
 export { token } from './token.js'
+export { person } from './person.js'
 export { pendingGet, pendingPost, pendingDelete } from './pending.js'
 export { permission } from './permission.js'
 export { audit } from './audit.js'
