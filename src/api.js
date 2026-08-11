@@ -27,7 +27,7 @@ export default function (fastify) {
     fastify.register(cors, {
         exposedHeaders: [
             'AAuth-Requirement', 'Accept-Signature', 'Accept-Signature-Scheme',
-            'Signature-Error', 'Location',
+            'Accept-Signature-Alg', 'Signature-Error', 'Location', 'Retry-After',
         ],
     })
     // mock APIs
