@@ -173,7 +173,7 @@ describe('AAuth /aauth/person — person token endpoint', function () {
             })
             expect(res.statusCode).to.equal(400)
             expect(res.json().error).to.equal('invalid_request')
-            expect(res.json().error_description).to.match(/upstream_token/)
+            expect(res.json().detail).to.match(/upstream_token/)
         })
 
         it('401 when the body signature does not cover content-digest', async function () {
@@ -190,7 +190,7 @@ describe('AAuth /aauth/person — person token endpoint', function () {
                 method: 'POST', url: '/aauth/person', headers, payload,
             })
             expect(res.statusCode).to.equal(401)
-            expect(res.json().error_description).to.match(/content-digest/)
+            expect(res.json().detail).to.match(/content-digest/)
             expect(res.headers['accept-signature']).to.match(/content-digest/)
         })
 
@@ -218,7 +218,7 @@ describe('AAuth /aauth/person — person token endpoint', function () {
             const res = await requestPersonToken(fastify, { agentToken })
             expect(res.statusCode).to.equal(401)
             expect(res.json().error).to.equal('invalid_jwt')
-            expect(res.json().error_description).to.match(/EdDSA/)
+            expect(res.json().detail).to.match(/EdDSA/)
         })
 
         it('401 when no signature is present', async function () {
@@ -259,6 +259,89 @@ describe('AAuth /aauth/person — person token endpoint', function () {
             expect(res.statusCode).to.equal(403)
             expect(res.json().error).to.equal('denied')
         })
+    })
+
+    // -09 adopted RFC 9457 for AAuth error bodies (§Error Response
+    // Format). Mockin is the reference PS, so whatever it emits is what
+    // clients get written to parse — it emits `detail`, never
+    // `error_description`, and never both.
+    describe('RFC 9457 error responses', function () {
+        const cases = [
+            ['no signature', () => fastify.inject({
+                method: 'POST',
+                url: '/aauth/person',
+                headers: { 'content-type': 'application/json' },
+                payload: JSON.stringify({ resource: RESOURCE_SERVER_URL }),
+            })],
+            ['bad request', () => requestPersonToken(fastify, { resource: 'nope' })],
+            ['injected error', async () => {
+                await setMock({ error: 'denied', error_endpoint: 'person' })
+                return requestPersonToken(fastify)
+            }],
+            ['unknown pending id', async () => {
+                const agentToken = await mintAgentToken()
+                const { headers } = await signedRequest({
+                    method: 'GET', path: '/aauth/pending/nope', agentToken,
+                })
+                return fastify.inject({
+                    method: 'GET', url: '/aauth/pending/nope', headers,
+                })
+            }],
+            ['bootstrap without agent_server', async () => {
+                const { signedHwkRequest } = await import('./helpers.js')
+                const { headers, payload } = await signedHwkRequest({
+                    method: 'POST', path: '/aauth/bootstrap', body: {},
+                })
+                return fastify.inject({
+                    method: 'POST', url: '/aauth/bootstrap', headers, payload,
+                })
+            }],
+            ['permission without action', async () => {
+                const agentToken = await mintAgentToken()
+                const { headers, payload } = await signedRequest({
+                    method: 'POST', path: '/aauth/permission', body: {}, agentToken,
+                })
+                return fastify.inject({
+                    method: 'POST', url: '/aauth/permission', headers, payload,
+                })
+            }],
+            ['audit without action', async () => {
+                const agentToken = await mintAgentToken()
+                const { headers, payload } = await signedRequest({
+                    method: 'POST', path: '/aauth/audit', body: {}, agentToken,
+                })
+                return fastify.inject({
+                    method: 'POST', url: '/aauth/audit', headers, payload,
+                })
+            }],
+            ['interaction with an unknown type', async () => {
+                const agentToken = await mintAgentToken()
+                const { headers, payload } = await signedRequest({
+                    method: 'POST',
+                    path: '/aauth/interaction',
+                    body: { type: 'telepathy' },
+                    agentToken,
+                })
+                return fastify.inject({
+                    method: 'POST', url: '/aauth/interaction', headers, payload,
+                })
+            }],
+            ['consent without a code', () => fastify.inject({
+                method: 'GET', url: '/aauth/consent',
+            })],
+        ]
+
+        for (const [name, run] of cases) {
+            it(`${name}: problem+json with error and detail`, async function () {
+                const res = await run()
+                expect(res.statusCode).to.be.at.least(400)
+                expect(res.headers['content-type'])
+                    .to.match(/^application\/problem\+json/)
+                const body = res.json()
+                expect(body.error).to.be.a('string')
+                expect(body).to.not.have.property('error_description')
+            })
+        }
     })
 
     describe('sub-agent tokens', function () {
@@ -326,7 +409,7 @@ describe('AAuth /aauth/person — person token endpoint', function () {
             })
             expect(res.statusCode).to.equal(400)
             expect(res.json().error).to.equal('invalid_agent_token')
-            expect(res.json().error_description).to.match(/parent_agent/)
+            expect(res.json().detail).to.match(/parent_agent/)
         })
     })
 

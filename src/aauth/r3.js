@@ -71,6 +71,18 @@ export function validateR3Document(document) {
     return null
 }
 
+// Read the AAuth error code out of an RFC 9457 body, if there is one.
+async function problemCode(response) {
+    const type = response.headers?.get?.('content-type') || ''
+    if (!/json/.test(type)) return null
+    try {
+        const body = await response.json()
+        return typeof body?.error === 'string' ? body.error : null
+    } catch {
+        return null
+    }
+}
+
 export async function fetchR3Document({ r3_uri, expected_s256 }) {
     const trusted = getConfig().trusted_servers || {}
     // Tests can preload an R3 doc by URI to bypass network.
@@ -111,7 +123,13 @@ export async function fetchR3Document({ r3_uri, expected_s256 }) {
         return new Error(`r3 fetch error: ${err.message}`)
     }
     if (!response.ok) {
-        return new Error(`r3 fetch returned ${response.status}`)
+        // The resource's own error body is RFC 9457 too (§Error Response
+        // Format), so name its code when it sent one — "returned 401" on
+        // its own tells the operator nothing about why.
+        const code = await problemCode(response)
+        return new Error(
+            `r3 fetch returned ${response.status}${code ? `: ${code}` : ''}`,
+        )
     }
     const ab = await response.arrayBuffer()
     const bytes = Buffer.from(ab)

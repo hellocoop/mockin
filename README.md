@@ -37,6 +37,8 @@ The mock API at `PUT /mock/aauth` switches the simulated behaviours:
 | `token_lifetime`, `claims`, `r3_grants`, `tenant` | shape the issued tokens (`r3_grants` takes `{ granted, per_call }`) |
 | `require_body_signing` | `false` accepts a body signature that does not cover `content-digest` and `content-type` |
 
+AAuth errors are RFC 9457 problem details — `Content-Type: application/problem+json` with the AAuth error code in `error` and the explanation in `detail`. The OIDC endpoints keep the OAuth 2.0 `{error, error_description}` shape they are specified to use.
+
 ## Invite
 
 Mockin also mirrors Hellō's invite flow — useful for testing how your app handles the `events_uri` SET (Security Event Token) JWT and the `initiate_login_uri` redirect for newly invited users. Endpoints include `POST /invite`, `GET /invitation/:id`, `PUT /invitation/:id` (accept), `DELETE /invitation/:id` (decline), `DELETE /invite/:id` (retract), and `POST /invitation/:id/report` (abuse). SET JWT is RS256-signed and delivered to `events_uri` on accept. See the [docs](https://www.hello.dev/docs/mockin#invite) for details.

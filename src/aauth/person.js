@@ -24,6 +24,7 @@ import { issuePersonToken } from './issue-person-token.js'
 import { verifyAgentToken } from './verify-agent-token.js'
 import { parseRequestParameters, canDriveInteraction } from './request-parameters.js'
 import { createPending, updatePending } from './state.js'
+import { problem } from './problem.js'
 
 const ERROR_STATUS = {
     invalid_request: 400,
@@ -67,33 +68,26 @@ export const person = async (req, reply) => {
 
     const mockErr = mockErrorFor('person')
     if (mockErr) {
-        return reply.code(ERROR_STATUS[mockErr] || 400).send({
-            error: mockErr,
-            error_description: `Mock error: ${mockErr}`,
-        })
+        return problem(
+            reply, ERROR_STATUS[mockErr] || 400, mockErr,
+            `Mock error: ${mockErr}`,
+        )
     }
 
     const resourceError = validateResourceIdentifier(body.resource)
     if (resourceError) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: resourceError,
-        })
+        return problem(reply, 400, 'invalid_request', resourceError)
     }
 
     if (body.upstream_token !== undefined) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description:
-                'upstream_token is not supported: call chaining is not implemented by mockin',
-        })
+        return problem(
+            reply, 400, 'invalid_request',
+            'upstream_token is not supported: call chaining is not implemented by mockin',
+        )
     }
 
     if (body.mission_s256 !== undefined && typeof body.mission_s256 !== 'string') {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'mission_s256 must be a string',
-        })
+        return problem(reply, 400, 'invalid_request', 'mission_s256 must be a string')
     }
     // mission_endpoint is unimplemented, so there is no mission to look up.
     // The value is accepted, stamped on the token, and later compared
@@ -104,10 +98,7 @@ export const person = async (req, reply) => {
     // platform, device, capabilities.
     const parsed = parseRequestParameters(body)
     if (parsed.error) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: parsed.error,
-        })
+        return problem(reply, 400, 'invalid_request', parsed.error)
     }
     const params = parsed.params
 
@@ -119,24 +110,21 @@ export const person = async (req, reply) => {
 
     if (body.subagent_token !== undefined) {
         if (typeof body.subagent_token !== 'string') {
-            return reply.code(400).send({
-                error: 'invalid_request',
-                error_description: 'subagent_token must be a string',
-            })
+            return problem(
+                reply, 400, 'invalid_request', 'subagent_token must be a string',
+            )
         }
         const sub = await verifyAgentToken(body.subagent_token)
         if (sub.error) {
-            return reply.code(400).send({
-                error: 'invalid_agent_token',
-                error_description: `subagent_token: ${sub.error}`,
-            })
+            return problem(
+                reply, 400, 'invalid_agent_token', `subagent_token: ${sub.error}`,
+            )
         }
         if (sub.payload.parent_agent !== aauth.agent_id) {
-            return reply.code(400).send({
-                error: 'invalid_agent_token',
-                error_description:
-                    `subagent_token parent_agent "${sub.payload.parent_agent}" does not name the signing agent "${aauth.agent_id}"`,
-            })
+            return problem(
+                reply, 400, 'invalid_agent_token',
+                `subagent_token parent_agent "${sub.payload.parent_agent}" does not name the signing agent "${aauth.agent_id}"`,
+            )
         }
         cnfJwk = sub.payload.cnf.jwk
         subject_agent_exp = Math.min(
@@ -164,11 +152,10 @@ export const person = async (req, reply) => {
         // cannot drive the url + code we would hand it, so a 202 would be
         // unsatisfiable. Terminal, per §Token Endpoint Error Codes.
         if (cfg.person_requirement === 'interaction' && !canDriveInteraction(params)) {
-            return reply.code(403).send({
-                error: 'user_unreachable',
-                error_description:
-                    'user interaction is required and the agent did not declare the interaction capability',
-            })
+            return problem(
+                reply, 403, 'user_unreachable',
+                'user interaction is required and the agent did not declare the interaction capability',
+            )
         }
         const { id, code } = createPending({
             kind: 'person',

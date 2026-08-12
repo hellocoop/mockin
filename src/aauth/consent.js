@@ -10,23 +10,18 @@
 // authorization handle.
 
 import { getPendingByCode, updatePending } from './state.js'
+import { problem } from './problem.js'
 
 export const consent = async (req, reply) => {
     const { code, callback } = req.query || {}
 
     if (!code) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'missing code',
-        })
+        return problem(reply, 400, 'invalid_request', 'missing code')
     }
 
     const entry = getPendingByCode(code)
     if (!entry) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'unknown code',
-        })
+        return problem(reply, 400, 'invalid_request', 'unknown code')
     }
 
     updatePending(entry.id, { status: 'approved' })
@@ -36,10 +31,7 @@ export const consent = async (req, reply) => {
         try {
             safe = new URL(callback).toString()
         } catch {
-            return reply.code(400).send({
-                error: 'invalid_request',
-                error_description: 'invalid callback url',
-            })
+            return problem(reply, 400, 'invalid_request', 'invalid callback url')
         }
         return reply.redirect(safe)
     }

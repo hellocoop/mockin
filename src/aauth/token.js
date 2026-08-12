@@ -24,6 +24,7 @@ import { issueAuthToken } from './issue-auth-token.js'
 import { parseRequestParameters, canDriveInteraction } from './request-parameters.js'
 import { verifyAgentToken } from './verify-agent-token.js'
 import { createPending, updatePending } from './state.js'
+import { problem } from './problem.js'
 
 const ERROR_STATUS = {
     invalid_request: 400,
@@ -46,36 +47,26 @@ export const token = async (req, reply) => {
     const mockErr = mockErrorFor('token')
     if (mockErr) {
         const status = ERROR_STATUS[mockErr] || 400
-        return reply.code(status).send({
-            error: mockErr,
-            error_description: `Mock error: ${mockErr}`,
-        })
+        return problem(reply, status, mockErr, `Mock error: ${mockErr}`)
     }
 
     if (!body.resource_token) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'missing resource_token',
-        })
+        return problem(reply, 400, 'invalid_request', 'missing resource_token')
     }
 
     // upstream_token is call chaining — deferred fleet-wide, not implemented.
     if (body.upstream_token !== undefined) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description:
-                'upstream_token is not supported: call chaining is not implemented by mockin',
-        })
+        return problem(
+            reply, 400, 'invalid_request',
+            'upstream_token is not supported: call chaining is not implemented by mockin',
+        )
     }
 
     // justification, login_hint, tenant, domain_hint, prompt, platform,
     // device, capabilities — parsed once, shared with the person endpoint.
     const parsed = parseRequestParameters(body)
     if (parsed.error) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: parsed.error,
-        })
+        return problem(reply, 400, 'invalid_request', parsed.error)
     }
     const params = parsed.params
 
@@ -87,24 +78,21 @@ export const token = async (req, reply) => {
     let cnfJwk = aauth.agent_public_key
     if (body.subagent_token !== undefined) {
         if (typeof body.subagent_token !== 'string') {
-            return reply.code(400).send({
-                error: 'invalid_request',
-                error_description: 'subagent_token must be a string',
-            })
+            return problem(
+                reply, 400, 'invalid_request', 'subagent_token must be a string',
+            )
         }
         const sub = await verifyAgentToken(body.subagent_token)
         if (sub.error) {
-            return reply.code(400).send({
-                error: 'invalid_agent_token',
-                error_description: `subagent_token: ${sub.error}`,
-            })
+            return problem(
+                reply, 400, 'invalid_agent_token', `subagent_token: ${sub.error}`,
+            )
         }
         if (sub.payload.parent_agent !== aauth.agent_id) {
-            return reply.code(400).send({
-                error: 'invalid_agent_token',
-                error_description:
-                    `subagent_token parent_agent "${sub.payload.parent_agent}" does not name the signing agent "${aauth.agent_id}"`,
-            })
+            return problem(
+                reply, 400, 'invalid_agent_token',
+                `subagent_token parent_agent "${sub.payload.parent_agent}" does not name the signing agent "${aauth.agent_id}"`,
+            )
         }
         cnfJwk = sub.payload.cnf.jwk
         expectedJkt = await calculateJwkThumbprint(cnfJwk)
@@ -112,10 +100,11 @@ export const token = async (req, reply) => {
 
     const rt = await verifyResourceToken(body.resource_token, expectedJkt)
     if (rt.error) {
-        return reply.code(400).send({
-            error: rt.expired ? 'expired_resource_token' : 'invalid_resource_token',
-            error_description: rt.error,
-        })
+        return problem(
+            reply, 400,
+            rt.expired ? 'expired_resource_token' : 'invalid_resource_token',
+            rt.error,
+        )
     }
 
     let r3 = null
@@ -125,10 +114,10 @@ export const token = async (req, reply) => {
             expected_s256: rt.r3.s256,
         })
         if (fetched instanceof Error) {
-            return reply.code(400).send({
-                error: 'invalid_resource_token',
-                error_description: `r3 fetch failed: ${fetched.message}`,
-            })
+            return problem(
+                reply, 400, 'invalid_resource_token',
+                `r3 fetch failed: ${fetched.message}`,
+            )
         }
         const grants = autoGrantR3({ document: fetched.document })
         r3 = { uri: rt.r3.uri, s256: rt.r3.s256, ...grants }
@@ -150,11 +139,10 @@ export const token = async (req, reply) => {
         // Same gate as the person token endpoint: an agent that declared
         // capabilities without `interaction` cannot complete one.
         if (cfg.requirement === 'interaction' && !canDriveInteraction(params)) {
-            return reply.code(403).send({
-                error: 'user_unreachable',
-                error_description:
-                    'user interaction is required and the agent did not declare the interaction capability',
-            })
+            return problem(
+                reply, 403, 'user_unreachable',
+                'user interaction is required and the agent did not declare the interaction capability',
+            )
         }
         const { id, code } = createPending({
             kind: 'token',

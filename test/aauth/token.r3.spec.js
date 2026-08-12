@@ -78,7 +78,7 @@ describe('AAuth /aauth/token — R3 flow', function () {
         })
         expect(response.statusCode).to.equal(400)
         expect(response.json().error).to.equal('invalid_resource_token')
-        expect(response.json().error_description).to.match(/r3_s256/i)
+        expect(response.json().detail).to.match(/r3_s256/i)
     })
 
     it('honours r3_grants override (mock)', async function () {
@@ -157,7 +157,7 @@ describe('AAuth /aauth/token — R3 flow', function () {
         })
         const response = await postToken({ scope: 'whoami', r3_uri, r3_s256 })
         expect(response.statusCode).to.equal(400)
-        expect(response.json().error_description).to.match(/parameters/)
+        expect(response.json().detail).to.match(/parameters/)
     })
 
     it('rejects the openapi-gateway vocabulary removed in R3 -02', async function () {
@@ -168,6 +168,6 @@ describe('AAuth /aauth/token — R3 flow', function () {
         })
         const response = await postToken({ scope: 'whoami', r3_uri, r3_s256 })
         expect(response.statusCode).to.equal(400)
-        expect(response.json().error_description).to.match(/openapi-gateway/)
+        expect(response.json().detail).to.match(/openapi-gateway/)
     })
 })

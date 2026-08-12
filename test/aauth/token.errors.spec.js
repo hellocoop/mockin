@@ -73,6 +73,21 @@ describe('AAuth /aauth/token — errors', function () {
         expect(response.json().error).to.equal('invalid_jwt')
     })
 
+    it('returns RFC 9457 problem details, not error_description', async function () {
+        const { person_token } = await getPersonToken(fastify)
+        const resourceToken = await mintResourceToken({
+            personToken: person_token,
+            aud: 'https://wrong-ps.example',
+        })
+        const response = await postResourceToken(resourceToken)
+        expect(response.headers['content-type'])
+            .to.match(/^application\/problem\+json/)
+        const body = response.json()
+        expect(body.error).to.equal('invalid_resource_token')
+        expect(body.detail).to.be.a('string')
+        expect(body).to.not.have.property('error_description')
+    })
+
     it('400 invalid_request when resource_token missing', async function () {
         const agentToken = await mintAgentToken()
         const { headers, payload } = await signedRequest({
@@ -103,7 +118,7 @@ describe('AAuth /aauth/token — errors', function () {
             method: 'POST', url: '/aauth/token', headers, payload,
         })
         expect(response.statusCode).to.equal(400)
-        expect(response.json().error_description).to.match(/upstream_token/)
+        expect(response.json().detail).to.match(/upstream_token/)
     })
 
     it('400 invalid_resource_token when aud != PS', async function () {
@@ -115,7 +130,7 @@ describe('AAuth /aauth/token — errors', function () {
         const response = await postResourceToken(resourceToken)
         expect(response.statusCode).to.equal(400)
         expect(response.json().error).to.equal('invalid_resource_token')
-        expect(response.json().error_description).to.match(/aud/)
+        expect(response.json().detail).to.match(/aud/)
     })
 
     it('400 invalid_resource_token when agent_jkt mismatches HTTPSig key', async function () {
@@ -126,7 +141,7 @@ describe('AAuth /aauth/token — errors', function () {
         })
         const response = await postResourceToken(resourceToken)
         expect(response.statusCode).to.equal(400)
-        expect(response.json().error_description).to.match(/agent_jkt/)
+        expect(response.json().detail).to.match(/agent_jkt/)
     })
 
     it('400 expired_resource_token when the resource token has expired', async function () {
@@ -149,7 +164,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/person_token_jti/)
+            expect(response.json().detail).to.match(/person_token_jti/)
         })
 
         it('rejects a person_token_jti this PS never issued', async function () {
@@ -160,7 +175,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description)
+            expect(response.json().detail)
                 .to.match(/names no person token this PS issued/)
         })
 
@@ -172,7 +187,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/sub mismatch/)
+            expect(response.json().detail).to.match(/sub mismatch/)
         })
 
         it('rejects a mismatched ps', async function () {
@@ -183,7 +198,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/ps mismatch/)
+            expect(response.json().detail).to.match(/ps mismatch/)
         })
 
         it('rejects a stripped mission_s256', async function () {
@@ -198,7 +213,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/mission_s256 mismatch/)
+            expect(response.json().detail).to.match(/mission_s256 mismatch/)
         })
 
         it('rejects an invented mission_s256', async function () {
@@ -209,7 +224,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/mission_s256 mismatch/)
+            expect(response.json().detail).to.match(/mission_s256 mismatch/)
         })
 
         it('rejects a mismatched tenant', async function () {
@@ -220,7 +235,7 @@ describe('AAuth /aauth/token — errors', function () {
             })
             const response = await postResourceToken(resourceToken)
             expect(response.statusCode).to.equal(400)
-            expect(response.json().error_description).to.match(/tenant mismatch/)
+            expect(response.json().detail).to.match(/tenant mismatch/)
         })
 
         it('accepts the matching set, mission and tenant included', async function () {
@@ -247,7 +262,7 @@ describe('AAuth /aauth/token — errors', function () {
         ).toString('base64url')
         const response = await postResourceToken(`${header}.${body}.${sig}`)
         expect(response.statusCode).to.equal(400)
-        expect(response.json().error_description).to.match(/EdDSA/)
+        expect(response.json().detail).to.match(/EdDSA/)
     })
 
     it('returns mock-injected error code', async function () {

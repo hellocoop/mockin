@@ -26,6 +26,7 @@ import {
 import { verifyAgentToken } from './verify-agent-token.js'
 import { ACCEPTED_JWT_ALGS } from './algorithms.js'
 import { getConfig } from './mock.js'
+import { problemBody, PROBLEM_CONTENT_TYPE } from './problem.js'
 
 // -11: PS endpoints taking a body require content-digest and content-type
 // in the covered components, on top of the base profile.
@@ -55,8 +56,11 @@ export const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['jwt'])
 // -10 admits no polymorphic EdDSA; say so when we decline one.
 export const ACCEPT_SIG_ALG = generateAcceptSignatureAlgHeader(ACCEPTED_JWT_ALGS)
 
-function fail(status, body, headers = {}) {
-    return { ok: false, status, body, headers }
+// Failures carry an RFC 9457 problem body (§Error Response Format): the
+// AAuth code in `error`, the explanation in `detail`. verifyPreHandler
+// sets the content type when it sends one.
+function fail(status, error, detail, headers = {}) {
+    return { ok: false, status, body: problemBody(error, detail), headers }
 }
 
 /**
@@ -95,11 +99,8 @@ export function checkBodySigning(request, sigResult) {
     if (!missing.length) return null
     return fail(
         401,
-        {
-            error: 'signature_verification_failed',
-            error_description:
-                `request body signature must cover ${missing.join(' and ')}`,
-        },
+        'signature_verification_failed',
+        `request body signature must cover ${missing.join(' and ')}`,
         {
             'Accept-Signature': ACCEPT_SIG_BODY,
             'Signature-Error': generateSignatureErrorHeader({
@@ -133,7 +134,8 @@ export async function verifyRequest(request) {
         if (noSig) {
             return fail(
                 401,
-                { error: 'signature_required' },
+                'signature_required',
+                undefined,
                 {
                     'Accept-Signature': hasBody ? ACCEPT_SIG_BODY : ACCEPT_SIG_NOBODY,
                     'Accept-Signature-Scheme': ACCEPT_SIG_SCHEME,
@@ -152,14 +154,7 @@ export async function verifyRequest(request) {
                 sigResult.acceptSignatureAlg,
             )
         }
-        return fail(
-            401,
-            {
-                error: 'signature_verification_failed',
-                error_description: sigResult.error,
-            },
-            headers,
-        )
+        return fail(401, 'signature_verification_failed', sigResult.error, headers)
     }
 
     if (hasBody) {
@@ -168,20 +163,17 @@ export async function verifyRequest(request) {
     }
 
     if (sigResult.keyType !== 'jwt' || !sigResult.jwt) {
-        return fail(401, {
-            error: 'invalid_key',
-            error_description: 'Signature-Key must use scheme=jwt with an agent_token',
-        })
+        return fail(
+            401, 'invalid_key',
+            'Signature-Key must use scheme=jwt with an agent_token',
+        )
     }
 
     const { header, payload, raw } = sigResult.jwt
 
     const verified = await verifyAgentToken(raw, { header, payload })
     if (verified.error) {
-        return fail(401, {
-            error: 'invalid_jwt',
-            error_description: verified.error,
-        })
+        return fail(401, 'invalid_jwt', verified.error)
     }
 
     return {
@@ -203,7 +195,10 @@ export async function verifyPreHandler(request, reply) {
         for (const [k, v] of Object.entries(result.headers || {})) {
             reply.header(k, v)
         }
-        reply.code(result.status).send(result.body)
+        reply
+            .code(result.status)
+            .header('Content-Type', PROBLEM_CONTENT_TYPE)
+            .send(result.body)
         return reply
     }
     request.aauth = result

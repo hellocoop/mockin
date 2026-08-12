@@ -22,6 +22,7 @@ import { issuePersonToken } from './issue-person-token.js'
 import { issueBootstrapToken } from './bootstrap.js'
 import { verifyAgentToken } from './verify-agent-token.js'
 import { checkBodySigning } from './verify-request.js'
+import { problem } from './problem.js'
 
 const ACCEPT_SIG_GET = generateAcceptSignatureHeader({
     label: 'sig',
@@ -49,12 +50,9 @@ async function runHttpSig(request) {
 
 function noSig(reply) {
     reply
-        .code(401)
         .header('Accept-Signature', ACCEPT_SIG_GET)
         .header('Accept-Signature-Scheme', ACCEPT_SIG_SCHEME)
-        .send({
-            error: 'signature_required',
-        })
+    return problem(reply, 401, 'signature_required')
 }
 
 async function verifyForEntry(request, reply, entry) {
@@ -69,10 +67,7 @@ async function verifyForEntry(request, reply, entry) {
                 generateSignatureErrorHeader(sigResult.signatureError),
             )
         }
-        return reply.code(401).send({
-            error: 'signature_verification_failed',
-            error_description: sigResult.error,
-        })
+        return problem(reply, 401, 'signature_verification_failed', sigResult.error)
     }
 
     // -11: a body-carrying request to a PS endpoint covers content-digest
@@ -84,59 +79,56 @@ async function verifyForEntry(request, reply, entry) {
             for (const [k, v] of Object.entries(bodyFailure.headers || {})) {
                 reply.header(k, v)
             }
-            return reply.code(bodyFailure.status).send(bodyFailure.body)
+            return problem(
+                reply, bodyFailure.status,
+                bodyFailure.body.error, bodyFailure.body.detail,
+            )
         }
     }
 
     if (entry.kind === 'bootstrap') {
         if (sigResult.keyType !== 'hwk') {
-            return reply.code(401).send({
-                error: 'invalid_key',
-                error_description: 'bootstrap polling requires hwk scheme',
-            })
+            return problem(
+                reply, 401, 'invalid_key', 'bootstrap polling requires hwk scheme',
+            )
         }
         const expectedJkt = await calculateJwkThumbprint(entry.ephemeral_jwk)
         if (sigResult.thumbprint !== expectedJkt) {
-            return reply.code(401).send({
-                error: 'invalid_key',
-                error_description: 'hwk key does not match bootstrap binding',
-            })
+            return problem(
+                reply, 401, 'invalid_key',
+                'hwk key does not match bootstrap binding',
+            )
         }
         return null // ok
     }
 
     // Non-bootstrap entries require an agent_token (JWT scheme).
     if (sigResult.keyType !== 'jwt' || !sigResult.jwt) {
-        return reply.code(401).send({
-            error: 'invalid_key',
-            error_description: 'expected sig=jwt with agent_token',
-        })
+        return problem(
+            reply, 401, 'invalid_key', 'expected sig=jwt with agent_token',
+        )
     }
     const { header, payload, raw } = sigResult.jwt
     const verified = await verifyAgentToken(raw, { header, payload })
     if (verified.error) {
-        return reply.code(401).send({
-            error: 'invalid_jwt',
-            error_description: verified.error,
-        })
+        return problem(reply, 401, 'invalid_jwt', verified.error)
     }
     return null // ok
 }
 
 export const pendingGet = async (req, reply) => {
     const entry = getPending(req.params.id)
-    if (!entry) return reply.code(404).send({ error: 'not_found' })
+    if (!entry) return problem(reply, 404, 'not_found')
 
     const verifyErr = await verifyForEntry(req, reply, entry)
     if (verifyErr) return verifyErr
 
+    // §Polling Error Codes.
     if (entry.status === 'cancelled') {
-        return reply.code(410).send({ error: 'cancelled' })
+        return problem(reply, 410, 'cancelled')
     }
     if (entry.status === 'error') {
-        return reply
-            .code(403)
-            .send({ error: entry.error || 'denied' })
+        return problem(reply, 403, entry.error || 'denied')
     }
 
     if (entry.status === 'pending') {
@@ -205,12 +197,12 @@ export const pendingGet = async (req, reply) => {
         return reply.code(200).send({ status: 'completed' })
     }
 
-    return reply.code(500).send({ error: 'server_error' })
+    return problem(reply, 500, 'server_error')
 }
 
 export const pendingPost = async (req, reply) => {
     const entry = getPending(req.params.id)
-    if (!entry) return reply.code(404).send({ error: 'not_found' })
+    if (!entry) return problem(reply, 404, 'not_found')
 
     const verifyErr = await verifyForEntry(req, reply, entry)
     if (verifyErr) return verifyErr
@@ -238,15 +230,15 @@ export const pendingPost = async (req, reply) => {
         return reply.code(202).send({ status: 'pending' })
     }
 
-    return reply.code(400).send({
-        error: 'invalid_request',
-        error_description: 'expected clarification_response or resource_token',
-    })
+    return problem(
+        reply, 400, 'invalid_request',
+        'expected clarification_response or resource_token',
+    )
 }
 
 export const pendingDelete = async (req, reply) => {
     const entry = getPending(req.params.id)
-    if (!entry) return reply.code(404).send({ error: 'not_found' })
+    if (!entry) return problem(reply, 404, 'not_found')
     const verifyErr = await verifyForEntry(req, reply, entry)
     if (verifyErr) return verifyErr
     updatePending(entry.id, { status: 'cancelled' })

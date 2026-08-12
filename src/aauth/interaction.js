@@ -5,6 +5,7 @@
 
 import { ISSUER } from '../config.js'
 import { createPending } from './state.js'
+import { problem } from './problem.js'
 
 const VALID_TYPES = new Set(['interaction', 'payment', 'question', 'completion'])
 
@@ -13,10 +14,10 @@ export const interaction = async (req, reply) => {
     const body = req.body || {}
 
     if (!body.type || !VALID_TYPES.has(body.type)) {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'type must be interaction|payment|question|completion',
-        })
+        return problem(
+            reply, 400, 'invalid_request',
+            'type must be interaction|payment|question|completion',
+        )
     }
 
     if (body.type === 'completion') {
