@@ -23,8 +23,8 @@ import { publicJwk, kid as MOCKIN_KID } from '../../src/aauth/keys.js'
 import { ISSUER } from '../../src/config.js'
 
 const R3_URI = 'https://rs.test.example/r3/abc'
+// R3 -02 removed the document's `version` field.
 const SAMPLE_DOC = {
-    version: '1',
     vocabulary: 'urn:aauth:vocabulary:openapi',
     operations: [{ operationId: 'getProfile' }],
 }

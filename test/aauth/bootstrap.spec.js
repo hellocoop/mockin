@@ -20,6 +20,7 @@ import { ISSUER } from '../../src/config.js'
 import {
     installMocks,
     signedHwkRequest,
+    PS_BODY_COMPONENTS,
     ephemeralPublicJwk,
 } from './helpers.js'
 
@@ -230,6 +231,7 @@ describe('AAuth /aauth/bootstrap', function () {
             body: '{}',
             signingKey: ephPrivJwk,
             signatureKey: { type: 'jwt', jwt: wrong },
+            components: PS_BODY_COMPONENTS,
             dryRun: true,
         })
         const out = {}

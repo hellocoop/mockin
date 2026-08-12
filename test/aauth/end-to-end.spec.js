@@ -13,7 +13,7 @@ import { fetch as httpsigFetch, verify as httpsigVerify } from '@hellocoop/https
 import Fastify from 'fastify'
 
 import api from '../../src/api.js'
-import { installMocks, signedHwkRequest } from './helpers.js'
+import { installMocks, PS_BODY_COMPONENTS } from './helpers.js'
 
 const fastify = Fastify()
 api(fastify)
@@ -44,6 +44,7 @@ describe('AAuth bootstrap end-to-end', function () {
                 body: JSON.stringify({ agent_server: 'http://agent.example' }),
                 signingKey: ephemeralPrivateJwk,
                 signatureKey: { type: 'hwk' },
+                components: PS_BODY_COMPONENTS,
                 dryRun: true,
             })
             const out = {}

@@ -15,7 +15,7 @@
 // don't want to drive the full redirect can flip mock.auto_approve = true
 // to short-circuit and pre-mark the pending entry as approved on creation.
 
-import { randomUUID, createHash } from 'crypto'
+import { randomUUID } from 'crypto'
 import { SignJWT } from 'jose'
 import {
     verify as httpSigVerify,
@@ -26,13 +26,22 @@ import {
 
 import { ISSUER } from '../config.js'
 import { privateKey, kid } from './keys.js'
+import { SIGNING_ALG } from './algorithms.js'
+import { directedSub } from './subject.js'
 import { getConfig, mockErrorFor } from './mock.js'
-import defaultUser from '../users.js'
+import { checkBodySigning } from './verify-request.js'
+import { problem } from './problem.js'
 import { createPending, updatePending } from './state.js'
 
+// -11: a body-carrying request to a PS endpoint covers content-digest and
+// content-type on top of the base profile.
 const ACCEPT_SIG = generateAcceptSignatureHeader({
     label: 'sig',
-    components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
+    components: [
+        '@method', '@authority', '@path',
+        'content-type', 'content-digest',
+        'signature-key',
+    ],
 })
 
 // Bootstrap accepts hwk (initial) or jwt (completion announcement).
@@ -40,26 +49,20 @@ const ACCEPT_SIG_SCHEME = generateAcceptSignatureSchemeHeader(['hwk', 'jwt'])
 
 const BOOTSTRAP_TOKEN_TTL = 300 // 5 minutes
 
-// Pairwise sub directed at agent_server: hash(user.sub || agent_server).
-function directedSub(userSub, agentServer) {
-    return createHash('sha256')
-        .update(`${userSub}|${agentServer}`)
-        .digest('base64url')
-}
-
 export async function issueBootstrapToken({ agent_server, ephemeral_jwk }) {
     const iat = Math.floor(Date.now() / 1000)
     const payload = {
         iss: ISSUER,
         dwk: 'aauth-person.json',
         aud: agent_server,
-        sub: directedSub(defaultUser.sub, agent_server),
+        // Same derivation as person and auth tokens — see subject.js.
+        sub: directedSub(agent_server),
         cnf: { jwk: ephemeral_jwk },
         iat,
         exp: iat + BOOTSTRAP_TOKEN_TTL,
     }
     const bootstrap_token = await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-bootstrap+jwt', kid })
+        .setProtectedHeader({ alg: SIGNING_ALG, typ: 'aa-bootstrap+jwt', kid })
         .setJti(randomUUID())
         .sign(privateKey)
     return { bootstrap_token, expires_in: BOOTSTRAP_TOKEN_TTL }
@@ -85,11 +88,10 @@ export const bootstrap = async (req, reply) => {
     if (!sigResult.verified) {
         const noSig = !req.headers.signature && !req.headers['signature-input']
         if (noSig) {
-            return reply
-                .code(401)
+            reply
                 .header('Accept-Signature', ACCEPT_SIG)
                 .header('Accept-Signature-Scheme', ACCEPT_SIG_SCHEME)
-                .send({ error: 'signature_required' })
+            return problem(reply, 401, 'signature_required')
         }
         const headers = {}
         if (sigResult.signatureError) {
@@ -98,10 +100,19 @@ export const bootstrap = async (req, reply) => {
             )
         }
         for (const [k, v] of Object.entries(headers)) reply.header(k, v)
-        return reply.code(401).send({
-            error: 'signature_verification_failed',
-            error_description: sigResult.error,
-        })
+        return problem(reply, 401, 'signature_verification_failed', sigResult.error)
+    }
+
+    // -11: the body signature must cover content-digest and content-type.
+    const bodyFailure = checkBodySigning(req, sigResult)
+    if (bodyFailure) {
+        for (const [k, v] of Object.entries(bodyFailure.headers || {})) {
+            reply.header(k, v)
+        }
+        return problem(
+            reply, bodyFailure.status,
+            bodyFailure.body.error, bodyFailure.body.detail,
+        )
     }
 
     // Two valid request flavours per the wallet PS pattern:
@@ -113,18 +124,17 @@ export const bootstrap = async (req, reply) => {
     if (sigResult.keyType === 'jwt' && sigResult.jwt) {
         const typ = sigResult.jwt.header?.typ
         if (typ !== 'aa-agent+jwt') {
-            return reply.code(401).send({
-                error: 'invalid_jwt',
-                error_description: `expected aa-agent+jwt, got ${typ}`,
-            })
+            return problem(
+                reply, 401, 'invalid_jwt', `expected aa-agent+jwt, got ${typ}`,
+            )
         }
         return reply.code(204).send()
     }
     if (sigResult.keyType !== 'hwk' || !sigResult.publicKey) {
-        return reply.code(401).send({
-            error: 'invalid_key',
-            error_description: 'bootstrap requires hwk or jwt Signature-Key scheme',
-        })
+        return problem(
+            reply, 401, 'invalid_key',
+            'bootstrap requires hwk or jwt Signature-Key scheme',
+        )
     }
     // Keep cnf.jwk minimal — { kty, crv, x, alg }. httpsig 2.0 (RFC 9864)
     // requires every JWK to carry a fully-specified alg; the hwk scheme now
@@ -136,18 +146,12 @@ export const bootstrap = async (req, reply) => {
 
     const body = req.body || {}
     if (!body.agent_server || typeof body.agent_server !== 'string') {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'missing agent_server',
-        })
+        return problem(reply, 400, 'invalid_request', 'missing agent_server')
     }
 
     const mockErr = mockErrorFor('bootstrap')
     if (mockErr) {
-        return reply.code(400).send({
-            error: mockErr,
-            error_description: `Mock error: ${mockErr}`,
-        })
+        return problem(reply, 400, mockErr, `Mock error: ${mockErr}`)
     }
 
     // Always go through the deferred flow — that's what the spec mandates

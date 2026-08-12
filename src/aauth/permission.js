@@ -5,16 +5,14 @@
 // flips to a refusal with reason.
 
 import { getConfig } from './mock.js'
+import { problem } from './problem.js'
 
 export const permission = async (req, reply) => {
     const cfg = getConfig()
     const body = req.body || {}
 
     if (!body.action || typeof body.action !== 'string') {
-        return reply.code(400).send({
-            error: 'invalid_request',
-            error_description: 'missing action',
-        })
+        return problem(reply, 400, 'invalid_request', 'missing action')
     }
 
     if (cfg.permission === 'denied') {

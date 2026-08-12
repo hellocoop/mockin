@@ -1,4 +1,5 @@
-// Deferred-mode polling — when mock.requirement is set, /aauth/token
+// Deferred-mode polling — when mock.requirement is set, the auth token
+// endpoint
 // returns 202 with a pending Location. The first poll auto-resolves and
 // returns the auth_token (mockin auto-approves on the agent's behalf).
 
@@ -10,8 +11,9 @@ import api from '../../src/api.js'
 import {
     installMocks,
     mintAgentToken,
-    mintResourceToken,
     signedRequest,
+    postAuthToken,
+    personAndResourceToken,
 } from './helpers.js'
 
 const fastify = Fastify()
@@ -27,20 +29,16 @@ async function setRequirement(req) {
 }
 
 async function startTokenRequest() {
-    const agentToken = await mintAgentToken()
-    const resourceToken = await mintResourceToken({ scope: 'openid email' })
-    const { headers, payload } = await signedRequest({
-        method: 'POST',
-        path: '/aauth/token',
-        body: { resource_token: resourceToken },
-        agentToken,
+    const { agentToken, resourceToken } = await personAndResourceToken(fastify, {
+        resource: { scope: 'openid email' },
     })
-    return { agentToken, response: await fastify.inject({
-        method: 'POST',
-        url: '/aauth/token',
-        headers,
-        payload,
-    }) }
+    return {
+        agentToken,
+        response: await postAuthToken(fastify, {
+            body: { resource_token: resourceToken },
+            agentToken,
+        }),
+    }
 }
 
 describe('AAuth /aauth/pending — deferred mode', function () {
