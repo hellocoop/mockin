@@ -43,17 +43,23 @@ export default function (fastify) {
     fastify.get('/.well-known/aauth-person.json', aauth.metadata)
     fastify.get('/aauth/jwks.json', aauth.jwks)
 
-    // AAuth: auth token endpoint (metadata: auth_token_endpoint)
-    fastify.post('/aauth/token', {
+    // AAuth: the two token endpoints, under a shared /aauth/token prefix
+    // (matching Wallet). Agents read the URLs from the PS metadata; the
+    // paths themselves are a deployment choice.
+    fastify.post('/aauth/token/auth', {
         preParsing: captureRawBody,
         preHandler: aauth.verifyPreHandler,
     }, aauth.token)
 
-    // AAuth: person token endpoint (metadata: person_token_endpoint)
-    fastify.post('/aauth/person', {
+    fastify.post('/aauth/token/person', {
         preParsing: captureRawBody,
         preHandler: aauth.verifyPreHandler,
     }, aauth.person)
+
+    // /aauth/token is a prefix, not an endpoint. Say so explicitly rather
+    // than letting a request for the old path fall into the generic 404 —
+    // or, worse, look like it might have been routed somewhere.
+    fastify.all('/aauth/token', aauth.tokenPrefix)
 
     // AAuth: pending endpoint (poll, clarify, cancel) — verification runs
     // inside the handler since bootstrap polls use hwk and others use jwt.

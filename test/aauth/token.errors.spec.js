@@ -1,4 +1,4 @@
-// /aauth/token error paths — bad signatures, mismatched claims, mock
+// auth_token_endpoint error paths — bad signatures, mismatched claims, mock
 // errors, and the -11 §Resource Token Verification step-6 binding: the
 // resource token must name a person token this PS issued, and its `ps`,
 // `sub`, `mission_s256` and `tenant` must match that token exactly.
@@ -12,7 +12,8 @@ import {
     installMocks,
     mintAgentToken,
     mintResourceToken,
-    signedRequest,
+    postAuthToken,
+    endpointPath,
     getPersonToken,
     personAndResourceToken,
 } from './helpers.js'
@@ -24,18 +25,13 @@ const MISSION_S256 = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 
 async function postResourceToken(resourceToken, agentToken) {
     const token = agentToken || (await mintAgentToken())
-    const { headers, payload } = await signedRequest({
-        method: 'POST',
-        path: '/aauth/token',
+    return postAuthToken(fastify, {
         body: { resource_token: resourceToken },
         agentToken: token,
     })
-    return fastify.inject({
-        method: 'POST', url: '/aauth/token', headers, payload,
-    })
 }
 
-describe('AAuth /aauth/token — errors', function () {
+describe('AAuth auth_token_endpoint — errors', function () {
     beforeEach(async function () {
         await installMocks(fastify)
     })
@@ -43,7 +39,7 @@ describe('AAuth /aauth/token — errors', function () {
     it('401 + Accept-Signature when no signature is present', async function () {
         const response = await fastify.inject({
             method: 'POST',
-            url: '/aauth/token',
+            url: await endpointPath(fastify, 'auth_token_endpoint'),
             headers: { 'content-type': 'application/json' },
             payload: JSON.stringify({ resource_token: 'x' }),
         })
@@ -90,32 +86,16 @@ describe('AAuth /aauth/token — errors', function () {
 
     it('400 invalid_request when resource_token missing', async function () {
         const agentToken = await mintAgentToken()
-        const { headers, payload } = await signedRequest({
-            method: 'POST',
-            path: '/aauth/token',
-            body: {},
-            agentToken,
-        })
-        const response = await fastify.inject({
-            method: 'POST',
-            url: '/aauth/token',
-            headers,
-            payload,
-        })
+        const response = await postAuthToken(fastify, { body: {}, agentToken })
         expect(response.statusCode).to.equal(400)
         expect(response.json().error).to.equal('invalid_request')
     })
 
     it('400 on upstream_token — call chaining is not implemented', async function () {
         const { agentToken, resourceToken } = await personAndResourceToken(fastify)
-        const { headers, payload } = await signedRequest({
-            method: 'POST',
-            path: '/aauth/token',
+        const response = await postAuthToken(fastify, {
             body: { resource_token: resourceToken, upstream_token: 'eyJ.e30.x' },
             agentToken,
-        })
-        const response = await fastify.inject({
-            method: 'POST', url: '/aauth/token', headers, payload,
         })
         expect(response.statusCode).to.equal(400)
         expect(response.json().detail).to.match(/upstream_token/)

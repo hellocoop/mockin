@@ -38,6 +38,16 @@ const ERROR_STATUS = {
     server_error: 500,
 }
 
+// /aauth/token is the prefix the two token endpoints sit under, not an
+// endpoint itself. A request that lands here is reading a path rather
+// than the metadata, so name both URLs in the answer.
+export const tokenPrefix = async (req, reply) => {
+    return problem(
+        reply, 404, 'not_found',
+        `/aauth/token is a path prefix, not an endpoint: the auth token endpoint is ${ISSUER}/aauth/token/auth and the person token endpoint is ${ISSUER}/aauth/token/person. Both are published in ${ISSUER}/.well-known/aauth-person.json.`,
+    )
+}
+
 export const token = async (req, reply) => {
     const cfg = getConfig()
     const aauth = req.aauth // set by verifyPreHandler

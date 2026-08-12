@@ -14,7 +14,7 @@ import api from '../../src/api.js'
 import {
     installMocks,
     registerR3Document,
-    signedRequest,
+    postAuthToken,
     personAndResourceToken,
 } from './helpers.js'
 
@@ -34,18 +34,13 @@ const sampleR3 = {
 async function postToken(resource) {
     const { agentToken, resourceToken } =
         await personAndResourceToken(fastify, { resource })
-    const { headers, payload } = await signedRequest({
-        method: 'POST',
-        path: '/aauth/token',
+    return postAuthToken(fastify, {
         body: { resource_token: resourceToken },
         agentToken,
     })
-    return fastify.inject({
-        method: 'POST', url: '/aauth/token', headers, payload,
-    })
 }
 
-describe('AAuth /aauth/token — R3 flow', function () {
+describe('AAuth auth_token_endpoint — R3 flow', function () {
     beforeEach(async function () {
         await installMocks(fastify)
     })

@@ -18,14 +18,48 @@ describe('AAuth Metadata & JWKS', function () {
             expect(data.issuer).to.equal(ISSUER)
             expect(data.jwks_uri).to.equal(`${ISSUER}/aauth/jwks.json`)
             // -11 renamed token_endpoint → auth_token_endpoint and made
-            // person_token_endpoint REQUIRED of every PS.
-            expect(data.auth_token_endpoint).to.equal(`${ISSUER}/aauth/token`)
-            expect(data.person_token_endpoint).to.equal(`${ISSUER}/aauth/person`)
+            // person_token_endpoint REQUIRED of every PS. Both sit under a
+            // shared /aauth/token prefix, matching Wallet.
+            expect(data.auth_token_endpoint).to.equal(`${ISSUER}/aauth/token/auth`)
+            expect(data.person_token_endpoint).to.equal(`${ISSUER}/aauth/token/person`)
             expect(data).to.not.have.property('token_endpoint')
             expect(data.permission_endpoint).to.equal(`${ISSUER}/aauth/permission`)
             expect(data.audit_endpoint).to.equal(`${ISSUER}/aauth/audit`)
             expect(data.interaction_endpoint).to.equal(`${ISSUER}/aauth/interaction`)
             expect(data.bootstrap_endpoint).to.equal(`${ISSUER}/aauth/bootstrap`)
+        })
+
+        it('serves both token endpoints under the /aauth/token prefix', async function () {
+            const data = (await fastify.inject({
+                method: 'GET',
+                url: '/.well-known/aauth-person.json',
+            })).json()
+            expect(new URL(data.auth_token_endpoint).pathname)
+                .to.equal('/aauth/token/auth')
+            expect(new URL(data.person_token_endpoint).pathname)
+                .to.equal('/aauth/token/person')
+        })
+
+        it('the bare /aauth/token prefix is not an endpoint', async function () {
+            // It must not silently route to either of the two, and the 404
+            // should say where they actually are.
+            for (const method of ['POST', 'GET']) {
+                const res = await fastify.inject({
+                    method,
+                    url: '/aauth/token',
+                    headers: { 'content-type': 'application/json' },
+                    payload: method === 'POST' ? '{}' : undefined,
+                })
+                expect(res.statusCode, method).to.equal(404)
+                expect(res.headers['content-type'])
+                    .to.match(/^application\/problem\+json/)
+                const body = res.json()
+                expect(body.error).to.equal('not_found')
+                expect(body.detail).to.match(/\/aauth\/token\/auth/)
+                expect(body.detail).to.match(/\/aauth\/token\/person/)
+                expect(body).to.not.have.property('auth_token')
+                expect(body).to.not.have.property('person_token')
+            }
         })
 
         it('publishes both token endpoints @aauth/bootstrap 2.0.0 requires', async function () {

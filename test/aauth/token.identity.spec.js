@@ -12,7 +12,7 @@ import { ISSUER } from '../../src/config.js'
 import defaultUser from '../../src/users.js'
 import {
     installMocks,
-    signedRequest,
+    postAuthToken,
     personAndResourceToken,
     ephemeralPublicJwk,
     RESOURCE_SERVER_URL,
@@ -26,19 +26,14 @@ api(fastify)
 async function postToken({ person = {}, resource = {}, body = {} } = {}) {
     const { agentToken, resourceToken, personClaims } =
         await personAndResourceToken(fastify, { person, resource })
-    const { headers, payload } = await signedRequest({
-        method: 'POST',
-        path: '/aauth/token',
+    const response = await postAuthToken(fastify, {
         body: { resource_token: resourceToken, ...body },
         agentToken,
-    })
-    const response = await fastify.inject({
-        method: 'POST', url: '/aauth/token', headers, payload,
     })
     return { response, personClaims }
 }
 
-describe('AAuth /aauth/token — identity flow (no R3)', function () {
+describe('AAuth auth_token_endpoint — identity flow (no R3)', function () {
     beforeEach(async function () {
         await installMocks(fastify)
     })

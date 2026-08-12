@@ -17,8 +17,10 @@ export const metadata = async (req, res) => {
         name: 'Mockin Person Server',
         description: '**Mockin** — a mock Person Server for AAuth testing.',
         jwks_uri: `${ISSUER}/aauth/jwks.json`,
-        auth_token_endpoint: `${ISSUER}/aauth/token`,
-        person_token_endpoint: `${ISSUER}/aauth/person`,
+        // Both token endpoints sit under a shared /aauth/token prefix, as
+        // Wallet does. The bare prefix is not a route.
+        auth_token_endpoint: `${ISSUER}/aauth/token/auth`,
+        person_token_endpoint: `${ISSUER}/aauth/token/person`,
         permission_endpoint: `${ISSUER}/aauth/permission`,
         audit_endpoint: `${ISSUER}/aauth/audit`,
         interaction_endpoint: `${ISSUER}/aauth/interaction`,

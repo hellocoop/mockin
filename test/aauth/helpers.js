@@ -176,9 +176,36 @@ export async function mintResourceToken({
         .sign(resourceServer.privateKey)
 }
 
+// ── Endpoint discovery ─────────────────────────────────────────────────
+//
+// Agents read endpoint URLs from the PS metadata, and so do these tests —
+// a test that hard-codes a path is testing a deployment choice rather
+// than the protocol, and breaks the day the path moves.
+
+let metadataCache = null
+
+export async function psMetadata(fastify) {
+    if (!metadataCache) {
+        const res = await fastify.inject({
+            method: 'GET',
+            url: '/.well-known/aauth-person.json',
+        })
+        metadataCache = res.json()
+    }
+    return metadataCache
+}
+
+/** The pathname of a published endpoint, e.g. 'person_token_endpoint'. */
+export async function endpointPath(fastify, field) {
+    const metadata = await psMetadata(fastify)
+    const url = metadata[field]
+    if (!url) throw new Error(`PS metadata publishes no ${field}`)
+    return new URL(url).pathname
+}
+
 // ── Person tokens ──────────────────────────────────────────────────────
 //
-// Almost every /aauth/token test now needs one first: the PS will only
+// Almost every auth token test now needs one first: the PS will only
 // accept a resource token whose person_token_jti names a person token it
 // issued (§Resource Token Verification step 6).
 
@@ -188,18 +215,26 @@ export async function requestPersonToken(fastify, {
     ...rest
 } = {}) {
     const token = agentToken || (await mintAgentToken())
+    const path = await endpointPath(fastify, 'person_token_endpoint')
     const { headers, payload } = await signedRequest({
         method: 'POST',
-        path: '/aauth/person',
+        path,
         body: { resource, ...rest },
         agentToken: token,
     })
-    return fastify.inject({
+    return fastify.inject({ method: 'POST', url: path, headers, payload })
+}
+
+/** Sign and POST a body to the auth token endpoint. */
+export async function postAuthToken(fastify, { body, agentToken }) {
+    const path = await endpointPath(fastify, 'auth_token_endpoint')
+    const { headers, payload } = await signedRequest({
         method: 'POST',
-        url: '/aauth/person',
-        headers,
-        payload,
+        path,
+        body,
+        agentToken,
     })
+    return fastify.inject({ method: 'POST', url: path, headers, payload })
 }
 
 /** 200-path convenience: returns { person_token, claims, agentToken }. */

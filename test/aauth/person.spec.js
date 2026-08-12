@@ -1,5 +1,6 @@
-// POST /aauth/person — the PS person_token_endpoint (-11 §Person Token
-// Endpoint, interop demo profile surface 2).
+// The PS person_token_endpoint (-11 §Person Token Endpoint, interop demo
+// profile surface 2). Paths come from the published metadata, the way an
+// agent gets them — never hard-coded here.
 
 import { expect } from 'chai'
 import {
@@ -16,6 +17,8 @@ import {
     signedRequest,
     requestPersonToken,
     getPersonToken,
+    postAuthToken,
+    endpointPath,
     ephemeralPublicJwk,
     ephemeralJkt,
     RESOURCE_SERVER_URL,
@@ -36,7 +39,7 @@ async function setMock(patch) {
     })
 }
 
-describe('AAuth /aauth/person — person token endpoint', function () {
+describe('AAuth person_token_endpoint', function () {
     beforeEach(async function () {
         await installMocks(fastify)
     })
@@ -93,14 +96,9 @@ describe('AAuth /aauth/person — person token endpoint', function () {
         const { mintResourceToken } = await import('./helpers.js')
         const agentToken = await mintAgentToken()
         const resourceToken = await mintResourceToken({ personToken: person_token })
-        const { headers, payload } = await signedRequest({
-            method: 'POST',
-            path: '/aauth/token',
+        const res = await postAuthToken(fastify, {
             body: { resource_token: resourceToken },
             agentToken,
-        })
-        const res = await fastify.inject({
-            method: 'POST', url: '/aauth/token', headers, payload,
         })
         expect(res.statusCode).to.equal(200)
         const auth = decodeJwt(res.json().auth_token)
@@ -178,16 +176,17 @@ describe('AAuth /aauth/person — person token endpoint', function () {
 
         it('401 when the body signature does not cover content-digest', async function () {
             const agentToken = await mintAgentToken()
+            const path = await endpointPath(fastify, 'person_token_endpoint')
             const { headers, payload } = await signedRequest({
                 method: 'POST',
-                path: '/aauth/person',
+                path,
                 body: { resource: RESOURCE_SERVER_URL },
                 agentToken,
                 // httpsig's own default list for a body — no content-digest.
                 components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
             })
             const res = await fastify.inject({
-                method: 'POST', url: '/aauth/person', headers, payload,
+                method: 'POST', url: path, headers, payload,
             })
             expect(res.statusCode).to.equal(401)
             expect(res.json().detail).to.match(/content-digest/)
@@ -197,15 +196,16 @@ describe('AAuth /aauth/person — person token endpoint', function () {
         it('accepts an uncovered body when require_body_signing is off', async function () {
             await setMock({ require_body_signing: false })
             const agentToken = await mintAgentToken()
+            const path = await endpointPath(fastify, 'person_token_endpoint')
             const { headers, payload } = await signedRequest({
                 method: 'POST',
-                path: '/aauth/person',
+                path,
                 body: { resource: RESOURCE_SERVER_URL },
                 agentToken,
                 components: ['@method', '@authority', '@path', 'content-type', 'signature-key'],
             })
             const res = await fastify.inject({
-                method: 'POST', url: '/aauth/person', headers, payload,
+                method: 'POST', url: path, headers, payload,
             })
             expect(res.statusCode).to.equal(200)
         })
@@ -224,7 +224,7 @@ describe('AAuth /aauth/person — person token endpoint', function () {
         it('401 when no signature is present', async function () {
             const res = await fastify.inject({
                 method: 'POST',
-                url: '/aauth/person',
+                url: await endpointPath(fastify, 'person_token_endpoint'),
                 headers: { 'content-type': 'application/json' },
                 payload: JSON.stringify({ resource: RESOURCE_SERVER_URL }),
             })
@@ -267,9 +267,9 @@ describe('AAuth /aauth/person — person token endpoint', function () {
     // `error_description`, and never both.
     describe('RFC 9457 error responses', function () {
         const cases = [
-            ['no signature', () => fastify.inject({
+            ['no signature', async () => fastify.inject({
                 method: 'POST',
-                url: '/aauth/person',
+                url: await endpointPath(fastify, 'person_token_endpoint'),
                 headers: { 'content-type': 'application/json' },
                 payload: JSON.stringify({ resource: RESOURCE_SERVER_URL }),
             })],
@@ -386,14 +386,9 @@ describe('AAuth /aauth/person — person token endpoint', function () {
 
             // 3. The parent presents both to the auth token endpoint.
             const agentToken = await mintAgentToken()
-            const { headers, payload } = await signedRequest({
-                method: 'POST',
-                path: '/aauth/token',
+            const res = await postAuthToken(fastify, {
                 body: { resource_token: resourceToken, subagent_token: sub.token },
                 agentToken,
-            })
-            const res = await fastify.inject({
-                method: 'POST', url: '/aauth/token', headers, payload,
             })
             expect(res.statusCode).to.equal(200)
             // 4. The auth token binds the sub-agent's key, not the parent's.
