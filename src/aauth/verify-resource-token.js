@@ -90,16 +90,22 @@ export async function verifyResourceToken(
 
     // ── Step 6 ─────────────────────────────────────────────────────────
     // The claims a resource copies out of the person token it verified.
-    if (!payload.person_token_jti) {
-        return { error: 'resource_token missing person_token_jti' }
+    // Spec issue #95 renamed `person_token_jti` → `presented_jti` (same
+    // value); resources dual-emit during the transition, so accept either,
+    // preferring the canonical name.
+    const presentedJti = payload.presented_jti ?? payload.person_token_jti
+    if (!presentedJti) {
+        return {
+            error: 'resource_token missing presented_jti (person_token_jti)',
+        }
     }
     if (!payload.ps) return { error: 'resource_token missing ps' }
     if (!payload.sub) return { error: 'resource_token missing sub' }
 
-    const issued = getPersonToken(payload.person_token_jti)
+    const issued = getPersonToken(presentedJti)
     if (!issued) {
         return {
-            error: `person_token_jti "${payload.person_token_jti}" names no person token this PS issued (or it has expired)`,
+            error: `presented_jti "${presentedJti}" names no person token this PS issued (or it has expired)`,
         }
     }
     if (payload.ps !== issued.ps) {
@@ -143,7 +149,7 @@ export async function verifyResourceToken(
         scope: typeof payload.scope === 'string' ? payload.scope : '',
         ps: payload.ps,
         sub: payload.sub,
-        person_token_jti: payload.person_token_jti,
+        person_token_jti: presentedJti,
         mission_s256: payload.mission_s256 || null,
         tenant: payload.tenant || null,
         account: payload.account || null,
