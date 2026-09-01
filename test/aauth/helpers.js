@@ -137,6 +137,11 @@ export async function mintResourceToken({
     r3_s256 = null,
     ttl = 300,
     personToken = null,
+    // Which name(s) carry the person-token jti (spec issue #95 rename):
+    // 'legacy' = person_token_jti only (pre-rename resources),
+    // 'presented' = presented_jti only (post-transition resources),
+    // 'both' = dual-emit (transition resources, @aauth/resource 2.1.0).
+    jti_claim = 'legacy',
 } = {}) {
     // Given a person token, copy from it — the normal case. Pass `false`
     // for any field to omit it deliberately (what a resource stripping a
@@ -165,6 +170,10 @@ export async function mintResourceToken({
     }
     for (const k of ['ps', 'sub', 'person_token_jti']) {
         if (!payload[k]) delete payload[k]
+    }
+    if (payload.person_token_jti && jti_claim !== 'legacy') {
+        payload.presented_jti = payload.person_token_jti
+        if (jti_claim === 'presented') delete payload.person_token_jti
     }
     if (mission_s256) payload.mission_s256 = mission_s256
     if (tenant) payload.tenant = tenant

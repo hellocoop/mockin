@@ -147,6 +147,26 @@ describe('AAuth auth_token_endpoint — errors', function () {
             expect(response.json().detail).to.match(/person_token_jti/)
         })
 
+        it('accepts the renamed presented_jti claim alone (spec issue #95)', async function () {
+            const { person_token } = await getPersonToken(fastify)
+            const resourceToken = await mintResourceToken({
+                personToken: person_token,
+                jti_claim: 'presented',
+            })
+            const response = await postResourceToken(resourceToken)
+            expect(response.statusCode).to.equal(200)
+        })
+
+        it('accepts a dual-emit token carrying both jti claim names', async function () {
+            const { person_token } = await getPersonToken(fastify)
+            const resourceToken = await mintResourceToken({
+                personToken: person_token,
+                jti_claim: 'both',
+            })
+            const response = await postResourceToken(resourceToken)
+            expect(response.statusCode).to.equal(200)
+        })
+
         it('rejects a person_token_jti this PS never issued', async function () {
             const { person_token } = await getPersonToken(fastify)
             const resourceToken = await mintResourceToken({
