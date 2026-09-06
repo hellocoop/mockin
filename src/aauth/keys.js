@@ -2,7 +2,7 @@
 
 import { generateKeyPair, exportJWK } from 'jose'
 
-const { publicKey, privateKey } = await generateKeyPair('Ed25519')
+const { publicKey, privateKey } = await generateKeyPair('Ed25519', { extractable: true })
 
 const kid = `aauth-${new Date().toISOString().replace(/[:.]/g, '-')}`
 

@@ -1,5 +1,5 @@
 // oauth.js
-import { verifyChallenge } from "pkce-challenge"
+import { createHash } from 'crypto'
 import { VALID_IDENTITY_CLAIMS } from '@hellocoop/constants'
 
 import mock from './mock.js'
@@ -67,7 +67,8 @@ export const token = async ( req, res ) => {
         return res.status(oauthErrorStatusCodes[token.error] || 400).send({error:token.error})
 
     if (request.code_challenge) {
-        const verifiedChallenge = await verifyChallenge(code_verifier, request.code_challenge)
+        // RFC 7636 S256 (the only method /authorize accepts)
+        const verifiedChallenge = createHash('sha256').update(code_verifier).digest('base64url') === request.code_challenge
         if (!verifiedChallenge)
             return res.status(400).send({error:'invalid_grant'})    
     } else { // check we got a credential

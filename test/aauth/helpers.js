@@ -26,7 +26,7 @@ import { ISSUER } from '../../src/config.js'
 // httpsig 2.0 (RFC 9864): alg must be fully specified — 'Ed25519', never
 // the polymorphic 'EdDSA'.
 async function mintServer(url, kid, alg = 'Ed25519') {
-    const { publicKey, privateKey } = await generateKeyPair(alg)
+    const { publicKey, privateKey } = await generateKeyPair(alg, { extractable: true })
     const publicJwk = await exportJWK(publicKey)
     publicJwk.kid = kid
     publicJwk.alg = alg
@@ -44,7 +44,7 @@ export const agentServer = await mintServer(AGENT_SERVER_URL, 'as-key-1')
 export const resourceServer = await mintServer(RESOURCE_SERVER_URL, 'rs-key-1')
 
 // Ephemeral key the "agent" uses to sign HTTP requests.
-const ephemeralKp = await generateKeyPair('Ed25519')
+const ephemeralKp = await generateKeyPair('Ed25519', { extractable: true })
 export const ephemeralPublicJwk = await exportJWK(ephemeralKp.publicKey)
 ephemeralPublicJwk.alg = 'Ed25519'
 export const ephemeralPrivateJwk = await exportJWK(ephemeralKp.privateKey)
@@ -336,6 +336,10 @@ async function sigHeaders({ method, path, body, signatureKey, components }) {
         opts.headers = { 'content-type': 'application/json' }
         opts.body = body
         opts.components = components || PS_BODY_COMPONENTS
+        // httpsig >= 2.2 auto-appends content-digest to a digestible body.
+        // When a test lists its own components, it is deciding the coverage
+        // (some tests deliberately leave content-digest out), so opt out.
+        if (components) opts.contentDigest = 'omit'
     } else if (components) {
         opts.components = components
     }

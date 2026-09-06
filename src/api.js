@@ -25,6 +25,9 @@ const captureRawBody = async (request, reply, payload) => {
 export default function (fastify) {
     fastify.register(fastifyFormbody)
     fastify.register(cors, {
+        // @fastify/cors 11 defaults to CORS-safelisted methods only; the
+        // /mock and /invite routes use PUT and DELETE.
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         exposedHeaders: [
             'AAuth-Requirement', 'Accept-Signature', 'Accept-Signature-Scheme',
             'Accept-Signature-Alg', 'Signature-Error', 'Location', 'Retry-After',
