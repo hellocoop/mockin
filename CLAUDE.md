@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Mock OpenID Connect server for Hellō. Fastify v5, Node.js 22, ES modules.
+Mock OpenID Connect server for Hellō. Fastify v5, Node.js 24 (engines >=22), ES modules.
 
 ## Commands
 
