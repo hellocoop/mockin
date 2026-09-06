@@ -209,7 +209,7 @@ describe('AAuth /aauth/bootstrap', function () {
     it('rejects sig=jwt that is not aa-agent+jwt', async function () {
         // Forge a JWT with the wrong typ.
         const { generateKeyPair, exportJWK, SignJWT } = await import('jose')
-        const kp = await generateKeyPair('Ed25519')
+        const kp = await generateKeyPair('Ed25519', { extractable: true })
         const pub = await exportJWK(kp.publicKey)
         pub.alg = 'Ed25519' // httpsig 2.0 requires alg on cnf.jwk
         const ephPrivJwk = await exportJWK(kp.privateKey)

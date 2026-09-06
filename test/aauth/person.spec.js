@@ -346,7 +346,7 @@ describe('AAuth person_token_endpoint', function () {
 
     describe('sub-agent tokens', function () {
         async function mintSubAgent(parent = DEFAULT_AGENT_ID) {
-            const kp = await generateKeyPair('Ed25519')
+            const kp = await generateKeyPair('Ed25519', { extractable: true })
             const jwk = await exportJWK(kp.publicKey)
             jwk.alg = 'Ed25519'
             const token = await mintAgentToken({

@@ -31,13 +31,13 @@
   },
   "homepage": "https://www.hello.dev/docs/mockin",
   "dependencies": {
-    "@fastify/cors": "^10.0.0",
-    "@fastify/formbody": "^8.0.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/formbody": "^9.0.0",
     "@hellocoop/constants": "*",
-    "@hellocoop/httpsig": "^2.0.0",
-    "fastify": "^5.0.0",
-    "jose": "^5.0.0",
-    "pkce-challenge": "^4.0.1"
+    "@hellocoop/httpsig": "^2.3.0",
+    "fastify": "^5.12.3",
+    "jose": "^6.2.12",
+    "pkce-challenge": "^6.0.0"
   },
   "scripts": {
     "build": "docker buildx build -t mockin . --platform linux/amd64,linux/arm64 --load",
@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "chai": "^6.2.2",
-    "mocha": "^11.7.5"
+    "mocha": "^12.0.0"
   },
   "type": "module",
   "overrides": {
