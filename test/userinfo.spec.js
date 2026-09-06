@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import pkceChallenge from 'pkce-challenge'
+import pkceChallenge from './pkce.js'
 import { decodeJwt } from 'jose'
 import Fastify from 'fastify'
 
