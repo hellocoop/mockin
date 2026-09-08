@@ -99,11 +99,13 @@ export async function mintAgentToken({
     cnf_jwk = ephemeralPublicJwk,
     parent_agent = undefined,
     ttl = 600,
+    // seconds added to iat (a positive value fakes an issuer clock ahead of ours)
+    iatOffset = 0,
     // -10 forbids the polymorphic 'EdDSA'; tests override this to prove
     // mockin declines it.
     alg = 'Ed25519',
 } = {}) {
-    const now = Math.floor(Date.now() / 1000)
+    const now = Math.floor(Date.now() / 1000) + iatOffset
     const payload = {
         iss: AGENT_SERVER_URL,
         dwk: 'aauth-agent.json',
@@ -371,11 +373,19 @@ async function sigHeaders({
 // JWT scheme — person, token, pending, permission, audit, interaction.
 export async function signedRequest({
     method, path, body, agentToken, components, signingKey,
+    // sign as if the agent's clock were this many ms off; mockin (same
+    // process) verifies on the real clock because the offset is lifted
+    // before inject
+    clockOffsetMs = 0,
 }) {
     const bodyStr = body === undefined
         ? undefined
         : typeof body === 'string' ? body : JSON.stringify(body)
-    const headers = await sigHeaders({
+    const realNow = Date.now
+    if (clockOffsetMs) Date.now = () => realNow() + clockOffsetMs
+    let headers
+    try {
+        headers = await sigHeaders({
         method,
         path,
         body: bodyStr,
@@ -383,6 +393,9 @@ export async function signedRequest({
         signingKey,
         signatureKey: { type: 'jwt', jwt: agentToken },
     })
+    } finally {
+        Date.now = realNow
+    }
     return { headers, payload: bodyStr }
 }
 

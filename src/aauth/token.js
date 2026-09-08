@@ -33,6 +33,7 @@ const ERROR_STATUS = {
     invalid_request: 400,
     invalid_agent_token: 400,
     expired_agent_token: 400,
+    clock_skew: 400,
     invalid_resource_token: 400,
     expired_resource_token: 400,
     invalid_presented_token: 400,
@@ -109,7 +110,8 @@ export const token = async (req, reply) => {
         const sub = await verifyAgentToken(body.subagent_token)
         if (sub.error) {
             return problem(
-                reply, 400, 'invalid_agent_token', `subagent_token: ${sub.error}`,
+                reply, 400, sub.code || 'invalid_agent_token',
+                `subagent_token: ${sub.error}`,
             )
         }
         if (sub.payload.parent_agent !== aauth.agent_id) {

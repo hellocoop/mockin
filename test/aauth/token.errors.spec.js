@@ -19,6 +19,7 @@ import {
     endpointPath,
     getPersonToken,
     personAndResourceToken,
+    requestPersonToken,
     resourceServer,
     ephemeralJkt,
 } from './helpers.js'
@@ -137,6 +138,52 @@ describe('AAuth auth_token_endpoint — errors', function () {
         const response = await postResourceToken(resourceToken, undefined, person_token)
         expect(response.statusCode).to.equal(400)
         expect(response.json().error).to.equal('expired_resource_token')
+    })
+
+    describe('clock_skew (§Expiry and the Refresh Margin)', function () {
+        it('401 clock_skew when the signature created is ahead of our clock', async function () {
+            const { agentToken, body } = await personAndResourceToken(fastify)
+            const { signedRequest } = await import('./helpers.js')
+            const path = await endpointPath(fastify, 'auth_token_endpoint')
+            const { headers, payload } = await signedRequest({
+                method: 'POST', path, body, agentToken, clockOffsetMs: 300_000,
+            })
+            const response = await fastify.inject({ method: 'POST', url: path, headers, payload })
+            expect(response.statusCode).to.equal(401)
+            expect(response.headers['signature-error']).to.equal('error=clock_skew')
+        })
+
+        it('401 clock_skew when the agent token iat is ahead of our clock', async function () {
+            const skewed = await mintAgentToken({ iatOffset: 7200, ttl: 3600 })
+            const { person_token } = await getPersonToken(fastify)
+            const resourceToken = await mintResourceToken({ presentedToken: person_token })
+            const response = await postResourceToken(resourceToken, skewed, person_token)
+            expect(response.statusCode).to.equal(401)
+            expect(response.json().error).to.equal('clock_skew')
+            expect(response.headers['signature-error']).to.equal('error=clock_skew')
+        })
+
+        it('an agent token iat inside the window is not skew', async function () {
+            const near = await mintAgentToken({ iatOffset: 30, ttl: 3600 })
+            const res = await requestPersonToken(fastify, { agentToken: near })
+            expect(res.statusCode).to.equal(200)
+        })
+
+        it('400 clock_skew when the presented token iat is ahead of our clock', async function () {
+            const { person_token, claims } = await getPersonToken(fastify)
+            const { privateJwk } = await import('../../src/aauth/keys.js')
+            const { importJWK } = await import('jose')
+            const key = await importJWK(privateJwk, 'Ed25519')
+            const now = Math.floor(Date.now() / 1000)
+            const skewed = await new SignJWT({ ...claims, iat: now + 7200, exp: now + 10800 })
+                .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-person+jwt', kid: privateJwk.kid })
+                .sign(key)
+            const resourceToken = await mintResourceToken({ presentedToken: person_token })
+            const response = await postResourceToken(resourceToken, undefined, skewed)
+            expect(response.statusCode).to.equal(400)
+            expect(response.json().error).to.equal('clock_skew')
+            expect(response.json().detail).to.match(/ahead of this server/)
+        })
     })
 
     describe('presented token binding (§Resource Token Verification step 6)', function () {
