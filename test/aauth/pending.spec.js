@@ -29,15 +29,12 @@ async function setRequirement(req) {
 }
 
 async function startTokenRequest() {
-    const { agentToken, resourceToken } = await personAndResourceToken(fastify, {
+    const { agentToken, body } = await personAndResourceToken(fastify, {
         resource: { scope: 'openid email' },
     })
     return {
         agentToken,
-        response: await postAuthToken(fastify, {
-            body: { resource_token: resourceToken },
-            agentToken,
-        }),
+        response: await postAuthToken(fastify, { body, agentToken }),
     }
 }
 

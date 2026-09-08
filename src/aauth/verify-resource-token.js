@@ -11,8 +11,10 @@
 //   4. aud === this PS
 //   5. agent_jkt === thumbprint of the key that signed the HTTP request
 //      (or, with a subagent_token, of the sub-agent's cnf.jwk)
-//   6. the person token named by `person_token_jti` is one WE issued, and
-//      its `ps`, `sub`, `mission_s256` and `tenant` match exactly
+//   6. `presented_jti`, `ps` and `sub` are present — the claims the resource
+//      copied out of the token the request carried. Verifying them against
+//      the `presented_token` the agent sent is verify-presented-token.js
+//      (issue #152); the handler runs it after this function returns.
 //   7. mission active — mockin has no mission store, see the note below
 //
 // Resource tokens no longer carry an `agent` claim: `agent_jkt` binds the
@@ -23,7 +25,6 @@ import * as jose from 'jose'
 import { ISSUER } from '../config.js'
 import { getEntity, RESOURCE_DWK } from './entity-cache.js'
 import { ACCEPTED_JWT_ALGS, checkJwtAlg } from './algorithms.js'
-import { getPersonToken } from './person-token-store.js'
 
 export async function verifyResourceToken(
     resourceTokenStr,
@@ -88,11 +89,13 @@ export async function verifyResourceToken(
         }
     }
 
-    // ── Step 6 ─────────────────────────────────────────────────────────
-    // The claims a resource copies out of the person token it verified.
-    // Spec issue #95 renamed `person_token_jti` → `presented_jti` (same
-    // value); resources dual-emit during the transition, so accept either,
-    // preferring the canonical name.
+    // ── Step 6 (presence) ─────────────────────────────────────────────
+    // The claims a resource copies out of the token it verified — the
+    // person token, or on a step-up the auth token. Spec issue #95 renamed
+    // `person_token_jti` → `presented_jti` (same value); resources
+    // dual-emit during the transition, so accept either, preferring the
+    // canonical name. The values are checked against the presented token
+    // in verify-presented-token.js.
     const presentedJti = payload.presented_jti ?? payload.person_token_jti
     if (!presentedJti) {
         return {
@@ -101,36 +104,6 @@ export async function verifyResourceToken(
     }
     if (!payload.ps) return { error: 'resource_token missing ps' }
     if (!payload.sub) return { error: 'resource_token missing sub' }
-
-    const issued = getPersonToken(presentedJti)
-    if (!issued) {
-        return {
-            error: `presented_jti "${presentedJti}" names no person token this PS issued (or it has expired)`,
-        }
-    }
-    if (payload.ps !== issued.ps) {
-        return {
-            error: `resource_token ps mismatch: person token has ${issued.ps}, resource_token has ${payload.ps}`,
-        }
-    }
-    if (payload.sub !== issued.sub) {
-        return {
-            error: `resource_token sub mismatch: person token has ${issued.sub}, resource_token has ${payload.sub}`,
-        }
-    }
-    // "rejecting the resource token on any mismatch or omission" — a
-    // dropped mission_s256 is exactly the stripping this check exists to
-    // catch, so absent-vs-present is a mismatch in both directions.
-    if ((payload.mission_s256 || null) !== (issued.mission_s256 || null)) {
-        return {
-            error: `resource_token mission_s256 mismatch: person token has ${issued.mission_s256 || '(none)'}, resource_token has ${payload.mission_s256 || '(none)'}`,
-        }
-    }
-    if ((payload.tenant || null) !== (issued.tenant || null)) {
-        return {
-            error: `resource_token tenant mismatch: person token has ${issued.tenant || '(none)'}, resource_token has ${payload.tenant || '(none)'}`,
-        }
-    }
     // Step 7 (mission active, before its expires_at) needs a mission
     // store. mission_endpoint is unimplemented fleet-wide, so there is no
     // mission to look up; the binding above is the part the fleet tests.
@@ -149,7 +122,8 @@ export async function verifyResourceToken(
         scope: typeof payload.scope === 'string' ? payload.scope : '',
         ps: payload.ps,
         sub: payload.sub,
-        person_token_jti: presentedJti,
+        presented_jti: presentedJti,
+        agent_jkt: payload.agent_jkt,
         mission_s256: payload.mission_s256 || null,
         tenant: payload.tenant || null,
         account: payload.account || null,

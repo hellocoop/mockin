@@ -95,9 +95,9 @@ describe('AAuth person_token_endpoint', function () {
         const { person_token, claims } = await getPersonToken(fastify)
         const { mintResourceToken } = await import('./helpers.js')
         const agentToken = await mintAgentToken()
-        const resourceToken = await mintResourceToken({ personToken: person_token })
+        const resourceToken = await mintResourceToken({ presentedToken: person_token })
         const res = await postAuthToken(fastify, {
-            body: { resource_token: resourceToken },
+            body: { resource_token: resourceToken, presented_token: person_token },
             agentToken,
         })
         expect(res.statusCode).to.equal(200)
@@ -380,14 +380,20 @@ describe('AAuth person_token_endpoint', function () {
             // 2. The resource issues a resource token bound to the
             //    sub-agent's key (agent_jkt = its thumbprint).
             const resourceToken = await mintResourceToken({
-                personToken: person_token,
+                presentedToken: person_token,
                 agent_jkt: sub.jkt,
             })
 
-            // 3. The parent presents both to the auth token endpoint.
+            // 3. The parent presents all three to the auth token endpoint:
+            //    the resource token, the token the sub-agent presented to
+            //    the resource, and the sub-agent's agent token.
             const agentToken = await mintAgentToken()
             const res = await postAuthToken(fastify, {
-                body: { resource_token: resourceToken, subagent_token: sub.token },
+                body: {
+                    resource_token: resourceToken,
+                    presented_token: person_token,
+                    subagent_token: sub.token,
+                },
                 agentToken,
             })
             expect(res.statusCode).to.equal(200)

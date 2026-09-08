@@ -2,9 +2,11 @@
 //
 // Auto-approve flow (default):
 //   1. HTTPSig + agent_token verified by preHandler (request.aauth)
-//   2. Verify resource_token from the body, including -11 step 6: the
-//      person token named by `person_token_jti` must be one this PS
-//      issued, with matching ps / sub / mission_s256 / tenant
+//   2. Verify resource_token from the body, then -11 step 6 (issue #152):
+//      the presented_token the agent sent — the person token, or on a
+//      step-up the auth token, that it presented to the resource — must
+//      verify, and the resource token's presented_jti / ps / sub /
+//      mission_s256 / tenant must match it exactly
 //   3. If R3, fetch + hash-verify the document
 //   4. Inject mock errors / deferred response if configured
 //   5. Issue auth_token immediately, 200
@@ -19,6 +21,7 @@ import { calculateJwkThumbprint } from 'jose'
 import { ISSUER } from '../config.js'
 import { getConfig, mockErrorFor } from './mock.js'
 import { verifyResourceToken } from './verify-resource-token.js'
+import { verifyPresentedToken } from './verify-presented-token.js'
 import { fetchR3Document, autoGrantR3 } from './r3.js'
 import { issueAuthToken } from './issue-auth-token.js'
 import { parseRequestParameters, canDriveInteraction } from './request-parameters.js'
@@ -32,6 +35,9 @@ const ERROR_STATUS = {
     expired_agent_token: 400,
     invalid_resource_token: 400,
     expired_resource_token: 400,
+    invalid_presented_token: 400,
+    expired_presented_token: 400,
+    revoked_presented_token: 400,
     invalid_scope: 400,
     denied: 403,
     user_unreachable: 403,
@@ -62,6 +68,14 @@ export const token = async (req, reply) => {
 
     if (!body.resource_token) {
         return problem(reply, 400, 'invalid_request', 'missing resource_token')
+    }
+    // -11 issue #152: REQUIRED — the token the agent presented to the
+    // resource, whose jti the resource token's presented_jti names.
+    if (typeof body.presented_token !== 'string' || !body.presented_token) {
+        return problem(
+            reply, 400, 'invalid_request',
+            'missing presented_token: the person token (or, on a step-up, the auth token) presented to the resource, named by the resource token presented_jti',
+        )
     }
 
     // upstream_token is call chaining — deferred fleet-wide, not implemented.
@@ -116,6 +130,11 @@ export const token = async (req, reply) => {
             rt.error,
         )
     }
+    // Step 6: the presented token against the resource token.
+    const presented = await verifyPresentedToken(body.presented_token, rt)
+    if (presented.error) {
+        return problem(reply, ERROR_STATUS[presented.code] || 400, presented.code, presented.error)
+    }
 
     let r3 = null
     if (rt.r3) {
@@ -141,6 +160,8 @@ export const token = async (req, reply) => {
         mission_s256: rt.mission_s256 || undefined,
         tenant: rt.tenant || undefined,
         account: rt.account || undefined,
+        // §Auth Token Structure: never past the presented token's exp.
+        presented_exp: presented.exp,
         r3,
     }
 

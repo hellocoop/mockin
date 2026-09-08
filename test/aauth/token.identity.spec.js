@@ -12,6 +12,7 @@ import { ISSUER } from '../../src/config.js'
 import defaultUser from '../../src/users.js'
 import {
     installMocks,
+    mintAgentToken,
     postAuthToken,
     personAndResourceToken,
     ephemeralPublicJwk,
@@ -21,13 +22,13 @@ import {
 const fastify = Fastify()
 api(fastify)
 
-// Every token request now starts from a person token: the PS only accepts
-// a resource token whose person_token_jti names one it issued.
+// Every token request now starts from a person token: the resource token
+// names it and the agent presents it back as presented_token.
 async function postToken({ person = {}, resource = {}, body = {} } = {}) {
-    const { agentToken, resourceToken, personClaims } =
+    const { agentToken, body: tokenBody, personClaims } =
         await personAndResourceToken(fastify, { person, resource })
     const response = await postAuthToken(fastify, {
-        body: { resource_token: resourceToken, ...body },
+        body: { ...tokenBody, ...body },
         agentToken,
     })
     return { response, personClaims }
@@ -39,7 +40,10 @@ describe('AAuth auth_token_endpoint — identity flow (no R3)', function () {
     })
 
     it('issues a verifiable auth_token in auto-approve mode', async function () {
+        // The auth token never outlives the presented person token, which
+        // never outlives the agent token — so give the agent a long one.
         const { response, personClaims } = await postToken({
+            person: { agentToken: await mintAgentToken({ ttl: 7200 }) },
             resource: { scope: 'openid email whoami' },
         })
 
@@ -127,9 +131,23 @@ describe('AAuth auth_token_endpoint — identity flow (no R3)', function () {
             headers: { 'content-type': 'application/json' },
             payload: JSON.stringify({ token_lifetime: 7200 }),
         })
-        const { response } = await postToken({ resource: { scope: 'openid' } })
+        const { response } = await postToken({
+            person: { agentToken: await mintAgentToken({ ttl: 7200 }) },
+            resource: { scope: 'openid' },
+        })
         const claims = decodeJwt(response.json().auth_token)
         expect(claims.exp - claims.iat).to.equal(3600)
+    })
+
+    it('never outlives the presented token (agent token 600s → auth token ≤ 600s)', async function () {
+        const { response, personClaims } = await postToken({
+            person: { agentToken: await mintAgentToken({ ttl: 600 }) },
+            resource: { scope: 'openid' },
+        })
+        expect(response.statusCode).to.equal(200)
+        const claims = decodeJwt(response.json().auth_token)
+        expect(claims.exp).to.be.at.most(personClaims.exp)
+        expect(response.json().expires_in).to.be.at.most(600)
     })
 
     it('honours mock claims override', async function () {
