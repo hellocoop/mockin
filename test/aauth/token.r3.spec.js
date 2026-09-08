@@ -29,15 +29,12 @@ const sampleR3 = {
     ],
 }
 
-// Every request needs a person token first — the resource token has to
-// name one this PS issued.
+// Every request needs a person token first — the resource token names it
+// and the agent presents it back.
 async function postToken(resource) {
-    const { agentToken, resourceToken } =
+    const { agentToken, body } =
         await personAndResourceToken(fastify, { resource })
-    return postAuthToken(fastify, {
-        body: { resource_token: resourceToken },
-        agentToken,
-    })
+    return postAuthToken(fastify, { body, agentToken })
 }
 
 describe('AAuth auth_token_endpoint — R3 flow', function () {

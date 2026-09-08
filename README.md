@@ -37,6 +37,8 @@ The mock API at `PUT /mock/aauth` switches the simulated behaviours:
 | `token_lifetime`, `claims`, `r3_grants`, `tenant` | shape the issued tokens (`r3_grants` takes `{ granted, per_call }`) |
 | `require_body_signing` | `false` accepts a body signature that does not cover `content-digest` and `content-type` |
 
+The auth token request (`POST /aauth/token/auth`) follows AAuth -11: `resource_token` and `presented_token` are REQUIRED. `presented_token` is the token the agent presented to the resource — the person token from `/aauth/token/person`, or on a step-up the auth token — and the resource token's `presented_jti` must name it. Mockin verifies the presented token under its own key (`aud` = the resource, `cnf.jwk` = the resource token's `agent_jkt`) and rejects any `ps` / `sub` / `mission_s256` / `tenant` mismatch with `invalid_resource_token`; a bad or missing presented token is `invalid_request`, `invalid_presented_token` or `expired_presented_token`. The auth token never outlives the presented token.
+
 AAuth errors are RFC 9457 problem details — `Content-Type: application/problem+json` with the AAuth error code in `error` and the explanation in `detail`. The OIDC endpoints keep the OAuth 2.0 `{error, error_description}` shape they are specified to use.
 
 ## Invite

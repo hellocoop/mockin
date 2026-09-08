@@ -7,8 +7,9 @@
 //
 // `sub` comes from subject.js, the same derivation issue-auth-token.js
 // uses, so the value in this token is byte-equal to the one the auth
-// token will carry for the same `aud`. That equality is what the PS's own
-// step-6 check (§Resource Token Verification) compares against.
+// token will carry for the same `aud`. The agent presents this token back
+// with its auth token request (`presented_token`); step 6 of §Resource
+// Token Verification checks the resource token against it.
 
 import { randomUUID } from 'crypto'
 import { SignJWT } from 'jose'
@@ -73,7 +74,7 @@ export async function issuePersonToken({
         .setProtectedHeader({ alg: SIGNING_ALG, typ: 'aa-person+jwt', kid })
         .sign(privateKey)
 
-    // §Resource Token Verification step 6 needs this later.
+    // §Person Token Endpoint retention (jti, aud, exp) — for revocation.
     recordPersonToken({
         jti,
         ps: ISSUER,

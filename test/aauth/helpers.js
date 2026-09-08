@@ -120,9 +120,10 @@ export async function mintAgentToken({
         .sign(agentServer.privateKey)
 }
 
-// -11 §Resource Token Structure: `ps`, `sub` and `person_token_jti` are
-// copied from the person token the resource verified, `agent_jkt` binds
-// the agent's key. There is no `agent` claim any more.
+// -11 §Resource Token Structure: `ps`, `sub` and `presented_jti` are
+// copied from the token the request carried — the person token, or on a
+// step-up the auth token (issue #152) — and `agent_jkt` binds the agent's
+// key. There is no `agent` claim any more.
 export async function mintResourceToken({
     scope = 'openid email',
     aud = ISSUER,
@@ -136,21 +137,27 @@ export async function mintResourceToken({
     r3_uri = null,
     r3_s256 = null,
     ttl = 300,
+    // The token the agent presented to the resource: a person token or an
+    // auth token. `personToken` is the older name for the same option.
+    presentedToken = null,
     personToken = null,
-    // Which name(s) carry the person-token jti (spec issue #95 rename):
+    // Which name(s) carry the presented jti (spec issue #95 rename):
     // 'legacy' = person_token_jti only (pre-rename resources),
     // 'presented' = presented_jti only (post-transition resources),
-    // 'both' = dual-emit (transition resources, @aauth/resource 2.1.0).
-    jti_claim = 'legacy',
+    // 'both' = dual-emit (transition resources, @aauth/resource ≥2.1.0 —
+    // what the fleet emits today).
+    jti_claim = 'both',
 } = {}) {
-    // Given a person token, copy from it — the normal case. Pass `false`
-    // for any field to omit it deliberately (what a resource stripping a
-    // claim would produce), or a value to make it disagree.
-    if (personToken) {
-        const pt = decodeJwt(personToken)
+    // Given the presented token, copy from it — the normal case. Pass
+    // `false` for any field to omit it deliberately (what a resource
+    // stripping a claim would produce), or a value to make it disagree.
+    const carried = presentedToken || personToken
+    if (carried) {
+        const pt = decodeJwt(carried)
         sub = sub ?? pt.sub
         person_token_jti = person_token_jti ?? pt.jti
-        ps = ps ?? pt.iss
+        // A person token names its PS as `iss`; an auth token as `ps`.
+        ps = ps ?? pt.ps ?? pt.iss
         if (mission_s256 === null && pt.mission_s256) mission_s256 = pt.mission_s256
         if (tenant === null && pt.tenant) tenant = pt.tenant
     }
@@ -214,9 +221,9 @@ export async function endpointPath(fastify, field) {
 
 // ── Person tokens ──────────────────────────────────────────────────────
 //
-// Almost every auth token test now needs one first: the PS will only
-// accept a resource token whose person_token_jti names a person token it
-// issued (§Resource Token Verification step 6).
+// Almost every auth token test now needs one first: the resource token
+// names it by presented_jti and the agent presents it back as
+// presented_token (§Resource Token Verification step 6, issue #152).
 
 export async function requestPersonToken(fastify, {
     resource = RESOURCE_SERVER_URL,
@@ -266,7 +273,8 @@ export async function getPersonToken(fastify, options = {}) {
 
 /**
  * The common setup: get a person token, then a resource token copied from
- * it. Overrides let a test corrupt exactly one copied claim.
+ * it. Overrides let a test corrupt exactly one copied claim. The returned
+ * `body` is what a conformant agent posts to the auth token endpoint.
  */
 export async function personAndResourceToken(fastify, {
     person = {},
@@ -274,10 +282,17 @@ export async function personAndResourceToken(fastify, {
 } = {}) {
     const { person_token, claims, agentToken } = await getPersonToken(fastify, person)
     const resourceToken = await mintResourceToken({
-        personToken: person_token,
+        presentedToken: person_token,
         ...resource,
     })
-    return { agentToken, person_token, personClaims: claims, resourceToken }
+    return {
+        agentToken,
+        person_token,
+        presentedToken: person_token,
+        personClaims: claims,
+        resourceToken,
+        body: { resource_token: resourceToken, presented_token: person_token },
+    }
 }
 
 // ── R3 doc helpers ─────────────────────────────────────────────────────
@@ -324,11 +339,14 @@ export const PS_BODY_COMPONENTS = [
     'signature-key',
 ]
 
-async function sigHeaders({ method, path, body, signatureKey, components }) {
+async function sigHeaders({
+    method, path, body, signatureKey, components,
+    signingKey = ephemeralPrivateJwk,
+}) {
     const url = `${ISSUER}${path}`
     const opts = {
         method,
-        signingKey: ephemeralPrivateJwk,
+        signingKey,
         signatureKey,
         dryRun: true,
     }
@@ -352,7 +370,7 @@ async function sigHeaders({ method, path, body, signatureKey, components }) {
 
 // JWT scheme — person, token, pending, permission, audit, interaction.
 export async function signedRequest({
-    method, path, body, agentToken, components,
+    method, path, body, agentToken, components, signingKey,
 }) {
     const bodyStr = body === undefined
         ? undefined
@@ -362,6 +380,7 @@ export async function signedRequest({
         path,
         body: bodyStr,
         components,
+        signingKey,
         signatureKey: { type: 'jwt', jwt: agentToken },
     })
     return { headers, payload: bodyStr }

@@ -1,18 +1,16 @@
 // aauth/person-token-store.js — issued person tokens, keyed by `jti`.
 //
-// Protocol -11 §Resource Token Verification step 6:
+// Protocol -11 §Person Token Endpoint (issue #152): "A PS MUST record, for
+// each person token it issues, the `jti`, the `aud`, and the `exp`, and,
+// once it has presented the token to an access server, which one, and MUST
+// keep the record until the token's `exp` plus clock skew." The record is
+// for revocation, not verification — resource token verification step 6
+// verifies the `presented_token` the agent sends, under this PS's own
+// signature (verify-presented-token.js), and consults no record.
 //
-//   "A PS MUST look up the person token identified by `person_token_jti`
-//    among those it issued, and MUST verify that `ps`, `sub`,
-//    `mission_s256`, and `tenant` match that token exactly, rejecting the
-//    resource token on any mismatch or omission."
-//
-// The spec implies this store without stating it (AAuth issue #87). It is
-// what makes mission stripping detectable: comparing claims alone would
-// not do, because an agent running concurrent missions holds several
-// person tokens for the same resource.
-//
-// A mock keeps it in memory and expires entries with the token itself.
+// mockin has no revocation endpoint and no AS federation, so the store is
+// introspection only: tests can ask which jtis are live. A mock keeps it
+// in memory and expires entries with the token itself.
 
 const issued = new Map() // jti → record
 

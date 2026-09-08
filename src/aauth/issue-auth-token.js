@@ -95,6 +95,10 @@ function releaseFor(identityScopes) {
  * @param {string} [args.mission_s256]      copied from the resource token
  * @param {string} [args.tenant]            copied from the resource token
  * @param {string} [args.account]           copied from the resource token
+ * @param {number} [args.presented_exp]     exp of the presented_token the
+ *                                          request carried — the auth token
+ *                                          MUST NOT expire later (-11 §Auth
+ *                                          Token Structure, issue #152)
  * @param {object} [args.r3]                { uri, s256, granted, per_call }
  */
 export async function issueAuthToken({
@@ -105,16 +109,20 @@ export async function issueAuthToken({
     mission_s256,
     tenant,
     account,
+    presented_exp,
     r3,
 }) {
     const cfg = getConfig()
-    const lifetime = Math.min(cfg.token_lifetime || MAX_AUTH_TOKEN_TTL, MAX_AUTH_TOKEN_TTL)
+    const iat = Math.floor(Date.now() / 1000)
+    let lifetime = Math.min(cfg.token_lifetime || MAX_AUTH_TOKEN_TTL, MAX_AUTH_TOKEN_TTL)
+    if (Number.isFinite(presented_exp)) {
+        lifetime = Math.max(1, Math.min(lifetime, presented_exp - iat))
+    }
     const { identity, resource } = classifyScopes(scope)
 
     const release = releaseFor(identity)
     const claimsOverride = cfg.claims || {}
 
-    const iat = Math.floor(Date.now() / 1000)
     const tokenPayload = {
         iss: ISSUER,
         dwk: 'aauth-person.json',
