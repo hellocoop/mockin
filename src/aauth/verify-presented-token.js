@@ -32,6 +32,7 @@ import { ISSUER } from '../config.js'
 import { publicJwk } from './keys.js'
 import { ACCEPTED_JWT_ALGS, checkJwtAlg } from './algorithms.js'
 import { getEntity, PERSON_DWK } from './entity-cache.js'
+import { IAT_SKEW_SECONDS } from './verify-agent-token.js'
 
 export const ACCESS_DWK = 'aauth-access.json'
 
@@ -131,6 +132,19 @@ export async function verifyPresentedToken(presentedTokenStr, rt) {
             'invalid_presented_token',
             `presented_token signature: ${err.message}`,
         )
+    }
+
+    // `iat` is not a validity check, except that one further ahead of our
+    // clock than the signature window is the issuer's clock disagreeing with
+    // ours: clock_skew — the agent waits rather than refreshes.
+    if (typeof payload.iat === 'number') {
+        const now = Math.floor(Date.now() / 1000)
+        if (payload.iat > now + IAT_SKEW_SECONDS) {
+            return fail(
+                'clock_skew',
+                `presented_token iat is ${payload.iat - now}s ahead of this server's clock (window ${IAT_SKEW_SECONDS}s)`,
+            )
+        }
     }
 
     // The two substitutions.

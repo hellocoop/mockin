@@ -173,7 +173,10 @@ export async function verifyRequest(request) {
 
     const verified = await verifyAgentToken(raw, { header, payload })
     if (verified.error) {
-        return fail(401, 'invalid_jwt', verified.error)
+        const code = verified.code || 'invalid_jwt'
+        return fail(401, code, verified.error, {
+            'Signature-Error': generateSignatureErrorHeader({ error: code }),
+        })
     }
 
     return {

@@ -39,6 +39,8 @@ The mock API at `PUT /mock/aauth` switches the simulated behaviours:
 
 The auth token request (`POST /aauth/token/auth`) follows AAuth -11: `resource_token` and `presented_token` are REQUIRED. `presented_token` is the token the agent presented to the resource — the person token from `/aauth/token/person`, or on a step-up the auth token — and the resource token's `presented_jti` must name it. Mockin verifies the presented token under its own key (`aud` = the resource, `cnf.jwk` = the resource token's `agent_jkt`) and rejects any `ps` / `sub` / `mission_s256` / `tenant` mismatch with `invalid_resource_token`; a bad or missing presented token is `invalid_request`, `invalid_presented_token` or `expired_presented_token`. The auth token never outlives the presented token.
 
+Expiry is judged against mockin's clock with no tolerance (AAuth -11 §Expiry and the Refresh Margin). A signature `created`, an agent token `iat`, or a presented token `iat` more than 60 seconds ahead of mockin's clock is `clock_skew` — a `401` with `Signature-Error: error=clock_skew` for the signature or the agent token, a `400` problem for a presented token — so an agent knows to wait the difference out rather than refresh.
+
 AAuth errors are RFC 9457 problem details — `Content-Type: application/problem+json` with the AAuth error code in `error` and the explanation in `detail`. The OIDC endpoints keep the OAuth 2.0 `{error, error_description}` shape they are specified to use.
 
 ## Invite

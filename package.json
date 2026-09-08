@@ -34,7 +34,7 @@
     "@fastify/cors": "^11.3.0",
     "@fastify/formbody": "^9.0.0",
     "@hellocoop/constants": "*",
-    "@hellocoop/httpsig": "^2.3.0",
+    "@hellocoop/httpsig": "^2.6.0",
     "fastify": "^5.12.3",
     "jose": "^6.2.12"
   },
