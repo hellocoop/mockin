@@ -139,6 +139,29 @@ describe('AAuth auth_token_endpoint — identity flow (no R3)', function () {
         expect(claims.exp - claims.iat).to.equal(3600)
     })
 
+    it('a negative token_lifetime still mints an expired token', async function () {
+        // The switch exists so a resource-side suite can drive its
+        // challenge-on-401 path. Clamping to the presented token's exp must
+        // not floor a deliberately negative lifetime up to 1s — that issues a
+        // live token and the challenge never fires.
+        // Mint the person token FIRST — token_lifetime shapes it too, and an
+        // expired presented token is a different (correct) 400.
+        const { agentToken, body } = await personAndResourceToken(fastify, {
+            resource: { scope: 'openid' },
+        })
+        await fastify.inject({
+            method: 'PUT',
+            url: '/mock/aauth',
+            headers: { 'content-type': 'application/json' },
+            payload: JSON.stringify({ token_lifetime: -60 }),
+        })
+        const response = await postAuthToken(fastify, { body, agentToken })
+        expect(response.statusCode).to.equal(200)
+        const claims = decodeJwt(response.json().auth_token)
+        expect(claims.exp - claims.iat).to.equal(-60)
+        expect(claims.exp).to.be.below(Math.floor(Date.now() / 1000))
+    })
+
     it('never outlives the presented token (agent token 600s → auth token ≤ 600s)', async function () {
         const { response, personClaims } = await postToken({
             person: { agentToken: await mintAgentToken({ ttl: 600 }) },
