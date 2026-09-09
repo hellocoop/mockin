@@ -115,7 +115,15 @@ export async function issueAuthToken({
     const cfg = getConfig()
     const iat = Math.floor(Date.now() / 1000)
     let lifetime = Math.min(cfg.token_lifetime || MAX_AUTH_TOKEN_TTL, MAX_AUTH_TOKEN_TTL)
-    if (Number.isFinite(presented_exp)) {
+    if (Number.isFinite(presented_exp) && lifetime > 0) {
+        // Never outlive the presented token (-11 §Auth Token Structure), and
+        // never let a presented token that is nearly expired turn a positive
+        // lifetime into a negative one — one second is still a live token.
+        //
+        // The floor applies to the clamp only. A NEGATIVE `token_lifetime` is
+        // the mock switch for minting an already-expired token, which the
+        // challenge-on-401 suites depend on; flooring that to 1 would issue a
+        // valid token and quietly break them.
         lifetime = Math.max(1, Math.min(lifetime, presented_exp - iat))
     }
     const { identity, resource } = classifyScopes(scope)
