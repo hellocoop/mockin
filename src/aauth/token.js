@@ -138,6 +138,51 @@ export const token = async (req, reply) => {
         return problem(reply, ERROR_STATUS[presented.code] || 400, presented.code, presented.error)
     }
 
+    // ── The connection ceremony ───────────────────────────────────────
+    // A connection-only resource token asks for no token at all: the person
+    // has to link an upstream account at the resource. The PS holds a pending
+    // record, sends the person to the resource's own interaction_endpoint with
+    // the code the resource is holding, and the ceremony ends when the resource
+    // bounces the browser back — `connection_established`, no auth token.
+    if (rt.connection_only) {
+        if (!canDriveInteraction(params, { requireDeclared: cfg.require_capabilities })) {
+            return problem(
+                reply, 403, 'user_unreachable',
+                'a connection requires user interaction and the agent did not declare the interaction capability',
+            )
+        }
+        const interactionEndpoint = rt.resource_metadata?.interaction_endpoint
+        if (typeof interactionEndpoint !== 'string' || !interactionEndpoint) {
+            return problem(
+                reply, 400, 'invalid_resource_token',
+                `resource ${rt.resource_url} publishes no interaction_endpoint, so its connection code cannot be delivered`,
+            )
+        }
+        if (new URL(interactionEndpoint).protocol !== 'https:') {
+            return problem(
+                reply, 400, 'invalid_resource_token',
+                `resource interaction_endpoint must be https, got ${interactionEndpoint}`,
+            )
+        }
+        const { id, code } = createPending({
+            kind: 'connection',
+            agent_id: aauth.agent_id,
+            resource_url: rt.resource_url,
+            interaction_endpoint: interactionEndpoint,
+            interaction_code: rt.interaction_code,
+            account: rt.account || null,
+            requirement: 'interaction',
+            params,
+        })
+        const location = `${ISSUER}/aauth/pending/${id}`
+        reply.code(202)
+        reply.header('Location', location)
+        reply.header('Retry-After', '0')
+        reply.header('Cache-Control', 'no-store')
+        reply.header('AAuth-Requirement', `requirement=interaction; code="${code}"`)
+        return reply.send({ status: 'pending', location })
+    }
+
     let r3 = null
     if (rt.r3) {
         const fetched = await fetchR3Document({

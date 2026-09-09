@@ -116,10 +116,47 @@ export async function verifyResourceToken(
         }
     }
 
+    // ── The connection ceremony ───────────────────────────────────────
+    // A resource that fronts an upstream the person must link mints a
+    // CONNECTION-ONLY resource token: no `scope`, no `r3_*`, and an
+    // `interaction_code` naming the pending record the resource is holding.
+    // The PS never issues a token for one — it puts the person in front of
+    // the resource's own interaction_endpoint and the ceremony ends with the
+    // connection established.
+    //
+    // Absent and empty are different: an existing R3 test mints `scope: ''`,
+    // and that is a scoped token asking for nothing, not a connection.
+    const scope = typeof payload.scope === 'string' ? payload.scope : null
+    const connectionOnly = scope === null
+    const interactionCode =
+        typeof payload.interaction_code === 'string' && payload.interaction_code
+            ? payload.interaction_code
+            : null
+    if (connectionOnly) {
+        if (!interactionCode) {
+            return {
+                error: 'resource_token has no scope and no interaction_code: a connection-only token must carry the code the resource is holding',
+            }
+        }
+        if (r3Uri) {
+            return { error: 'resource_token carries r3_uri without scope' }
+        }
+    }
+    // The nested `interaction: { url, code }` object was retired in favour of
+    // the flat `interaction_code` — the recipient composes the URL from the
+    // resource's published interaction_endpoint.
+    if (payload.interaction !== undefined) {
+        return {
+            error: 'resource_token carries the retired nested `interaction` object: emit interaction_code and publish interaction_endpoint',
+        }
+    }
+
     return {
         resource_url: resourceUrl,
         resource_metadata: entity.metadata,
-        scope: typeof payload.scope === 'string' ? payload.scope : '',
+        scope: scope ?? '',
+        connection_only: connectionOnly,
+        interaction_code: interactionCode,
         ps: payload.ps,
         sub: payload.sub,
         presented_jti: presentedJti,
@@ -127,7 +164,6 @@ export async function verifyResourceToken(
         mission_s256: payload.mission_s256 || null,
         tenant: payload.tenant || null,
         account: payload.account || null,
-        interaction: payload.interaction || null,
         r3: r3Uri ? { uri: r3Uri, s256: r3S256 } : null,
     }
 }
