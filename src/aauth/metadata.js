@@ -23,7 +23,14 @@ export const metadata = async (req, res) => {
         person_token_endpoint: `${ISSUER}/aauth/token/person`,
         permission_endpoint: `${ISSUER}/aauth/permission`,
         audit_endpoint: `${ISSUER}/aauth/audit`,
-        interaction_endpoint: `${ISSUER}/aauth/interaction`,
+        // The PERSON-facing page: where a recipient sends the person when a
+        // 202 carries only a code, composed as `{interaction_endpoint}?code=`.
+        // It is NOT the agent's reach API (POST /aauth/interaction) — that
+        // field carried both roles until the flat `interaction_code` landed,
+        // and an agent composing a person URL from it lands on a 404.
+        // Hellō's Wallet publishes `${PERSON}/auth` here.
+        interaction_endpoint: `${ISSUER}/aauth/consent`,
+        reach_endpoint: `${ISSUER}/aauth/interaction`,
         bootstrap_endpoint: `${ISSUER}/aauth/bootstrap`,
     })
 }

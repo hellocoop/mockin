@@ -25,7 +25,10 @@ describe('AAuth Metadata & JWKS', function () {
             expect(data).to.not.have.property('token_endpoint')
             expect(data.permission_endpoint).to.equal(`${ISSUER}/aauth/permission`)
             expect(data.audit_endpoint).to.equal(`${ISSUER}/aauth/audit`)
-            expect(data.interaction_endpoint).to.equal(`${ISSUER}/aauth/interaction`)
+            // The person-facing page, not the agent's reach API: an agent
+            // composes `{interaction_endpoint}?code=` and sends the person there.
+            expect(data.interaction_endpoint).to.equal(`${ISSUER}/aauth/consent`)
+            expect(data.reach_endpoint).to.equal(`${ISSUER}/aauth/interaction`)
             expect(data.bootstrap_endpoint).to.equal(`${ISSUER}/aauth/bootstrap`)
         })
 
