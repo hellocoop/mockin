@@ -21,6 +21,12 @@ const DEFAULTS = () => ({
     // Person token endpoint behaviour — its own switch, so a test can
     // defer the person token while the auth token stays immediate.
     person_requirement: null,   // null | 'interaction' | 'approval'
+    // Whether an agent that declared NO capabilities may be handed a
+    // `requirement=interaction` 202. Default false = capabilities omitted
+    // means unknown, and the deferred path stays open (§canDriveInteraction).
+    // True matches Hellō's Wallet: undeclared is unreachable, 403
+    // user_unreachable. Set it in any suite that stands in for production.
+    require_capabilities: false,
     // Error injection
     error: null,                // applies to /aauth/token unless scoped
     error_endpoint: null,       // restrict error to a specific endpoint
@@ -67,6 +73,7 @@ export const put = async (req, res) => {
     const next = { ...CONFIG }
     const passthrough = [
         'auto_approve', 'requirement', 'clarification', 'person_requirement',
+        'require_capabilities',
         'error', 'error_endpoint',
         'token_lifetime', 'claims', 'r3_grants', 'tenant',
         'require_body_signing',

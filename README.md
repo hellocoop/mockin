@@ -33,6 +33,7 @@ The mock API at `PUT /mock/aauth` switches the simulated behaviours:
 | `requirement` | `interaction` \| `approval` \| `clarification` — defers `/aauth/token/auth` with a `202` |
 | `person_requirement` | `interaction` \| `approval` — defers `/aauth/token/person` with a `202` |
 | `auto_approve` | `false` makes a deferred `interaction` wait for `GET /aauth/consent?code=…` instead of resolving on the first poll |
+| `require_capabilities` | `true` answers `403 user_unreachable` to an agent that declared no `capabilities` at all when an interaction is required. The default treats omitted capabilities as unknown and defers anyway; `true` matches Hellō's Wallet, which can only reach the person through a browser the agent opens |
 | `error` / `error_endpoint` | inject a token endpoint error code, optionally scoped to `token`, `person`, `bootstrap` or `permission` |
 | `token_lifetime`, `claims`, `r3_grants`, `tenant` | shape the issued tokens (`r3_grants` takes `{ granted, per_call }`) |
 | `require_body_signing` | `false` accepts a body signature that does not cover `content-digest` and `content-type` |

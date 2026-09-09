@@ -147,9 +147,17 @@ export function parseRequestParameters(body = {}) {
  * answer is `user_unreachable` (403).
  *
  * Capabilities omitted means unknown, not "cannot" — the PS may know them
- * from mission approval — so the deferred path stays open.
+ * from mission approval — so the deferred path stays open by default.
+ *
+ * `requireDeclared` closes it. Hellō's Wallet, which can only reach the
+ * person through a browser the agent opens or an already-open wallet tab,
+ * answers `user_unreachable` to an agent that declared nothing; an agent
+ * built against mockin's lenient default therefore worked here and 403'd
+ * against production (`@aauth/proxy` 4.0.0, fixed in 4.0.1). Tests that
+ * want to pin the stricter production behaviour set the
+ * `require_capabilities` mock switch.
  */
-export function canDriveInteraction(params) {
-    if (!params?.capabilities) return true
+export function canDriveInteraction(params, { requireDeclared = false } = {}) {
+    if (!params?.capabilities) return !requireDeclared
     return params.capabilities.includes('interaction')
 }

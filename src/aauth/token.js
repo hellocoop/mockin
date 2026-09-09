@@ -171,7 +171,10 @@ export const token = async (req, reply) => {
     if (cfg.requirement) {
         // Same gate as the person token endpoint: an agent that declared
         // capabilities without `interaction` cannot complete one.
-        if (cfg.requirement === 'interaction' && !canDriveInteraction(params)) {
+        if (
+            cfg.requirement === 'interaction' &&
+            !canDriveInteraction(params, { requireDeclared: cfg.require_capabilities })
+        ) {
             return problem(
                 reply, 403, 'user_unreachable',
                 'user interaction is required and the agent did not declare the interaction capability',

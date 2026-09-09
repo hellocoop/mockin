@@ -153,7 +153,10 @@ export const person = async (req, reply) => {
         // An agent that declared its capabilities without `interaction`
         // cannot drive the url + code we would hand it, so a 202 would be
         // unsatisfiable. Terminal, per §Token Endpoint Error Codes.
-        if (cfg.person_requirement === 'interaction' && !canDriveInteraction(params)) {
+        if (
+            cfg.person_requirement === 'interaction' &&
+            !canDriveInteraction(params, { requireDeclared: cfg.require_capabilities })
+        ) {
             return problem(
                 reply, 403, 'user_unreachable',
                 'user interaction is required and the agent did not declare the interaction capability',

@@ -509,6 +509,37 @@ describe('AAuth person_token_endpoint', function () {
             })
             expect(res.statusCode).to.equal(202)
         })
+
+        it('defers when capabilities are omitted (unknown, not "cannot")', async function () {
+            await setMock({ person_requirement: 'interaction' })
+            const res = await requestPersonToken(fastify, {})
+            expect(res.statusCode).to.equal(202)
+        })
+
+        it('require_capabilities makes omitted capabilities unreachable', async function () {
+            // Hellō's Wallet reaches the person only through a browser the
+            // agent opens or an already-open wallet tab, so it answers 403 to
+            // an agent that declared nothing. @aauth/proxy 4.0.0 sent no
+            // capabilities, passed here and 403'd there; 4.0.1 sends them.
+            await setMock({
+                person_requirement: 'interaction',
+                require_capabilities: true,
+            })
+            const res = await requestPersonToken(fastify, {})
+            expect(res.statusCode).to.equal(403)
+            expect(res.json().error).to.equal('user_unreachable')
+        })
+
+        it('require_capabilities still defers for a declared interaction', async function () {
+            await setMock({
+                person_requirement: 'interaction',
+                require_capabilities: true,
+            })
+            const res = await requestPersonToken(fastify, {
+                capabilities: ['interaction'],
+            })
+            expect(res.statusCode).to.equal(202)
+        })
     })
 
     describe('the jti store', function () {
