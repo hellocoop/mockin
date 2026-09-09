@@ -152,7 +152,11 @@ export const pendingGet = async (req, reply) => {
         // entry stays pending — unless mock.auto_approve pre-marked it
         // approved at creation, which is the default and what every
         // auto-approve test relies on. Bootstrap works the same way.
-        if (entry.kind === 'bootstrap' || entry.requirement === 'interaction') {
+        if (
+            entry.kind === 'bootstrap' ||
+            entry.kind === 'connection' ||
+            entry.requirement === 'interaction'
+        ) {
             const location = `${ISSUER}/aauth/pending/${entry.id}`
             reply.code(202)
             reply.header('Location', location)
@@ -186,6 +190,13 @@ export const pendingGet = async (req, reply) => {
         })
         deletePending(entry.id)
         return reply.code(200).send(issued)
+    }
+
+    // A connection ends with no token at all: the person linked an account at
+    // the resource, and that is the whole answer (§the connection ceremony).
+    if (entry.kind === 'connection') {
+        deletePending(entry.id)
+        return reply.code(200).send({ status: 'connection_established' })
     }
 
     if (entry.kind === 'permission') {

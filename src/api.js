@@ -93,6 +93,9 @@ export default function (fastify) {
 
     // AAuth: user-facing consent (browser navigation, no signing)
     fastify.get('/aauth/consent', aauth.consent)
+    // Where a resource returns the browser once its own ceremony is done —
+    // this is what terminates a connection record.
+    fastify.get('/aauth/bounce/:code', aauth.bounce)
 
     // Invite endpoints (mirrors wallet's external contract)
     fastify.get('/invite', invite.entry)

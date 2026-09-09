@@ -79,6 +79,8 @@ export async function installMocks(fastify) {
                 jwks_uri: `${RESOURCE_SERVER_URL}/.well-known/jwks.json`,
                 name: 'Mock Resource Server',
                 scope_descriptions: { whoami: 'Read identity' },
+                // Where the person goes for any ceremony the resource owns.
+                interaction_endpoint: `${RESOURCE_SERVER_URL}/oauth/start`,
             },
             jwks: { keys: [resourceServer.publicJwk] },
         },
@@ -138,6 +140,10 @@ export async function mintResourceToken({
     account = null,
     r3_uri = null,
     r3_s256 = null,
+    // The connection ceremony: pass `scope: null` for a connection-only token
+    // (no scope claim at all) and an interaction_code naming the pending
+    // record the resource is holding.
+    interaction_code = null,
     ttl = 300,
     // The token the agent presented to the resource: a person token or an
     // auth token. `personToken` is the older name for the same option.
@@ -172,7 +178,7 @@ export async function mintResourceToken({
         sub,
         person_token_jti,
         agent_jkt,
-        scope,
+        ...(scope === null ? {} : { scope }),
         iat: now,
         exp: now + ttl,
         jti: randomUUID(),
@@ -189,6 +195,7 @@ export async function mintResourceToken({
     if (account) payload.account = account
     if (r3_uri) payload.r3_uri = r3_uri
     if (r3_s256) payload.r3_s256 = r3_s256
+    if (interaction_code) payload.interaction_code = interaction_code
     return await new SignJWT(payload)
         .setProtectedHeader({ alg: 'Ed25519', typ: 'aa-resource+jwt', kid: resourceServer.kid })
         .sign(resourceServer.privateKey)
