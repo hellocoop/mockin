@@ -105,7 +105,7 @@ export async function verifyPresentedToken(presentedTokenStr, rt) {
         }
         let entity
         try {
-            entity = await getEntity(payload.iss, ACCESS_DWK)
+            entity = await getEntity(payload.iss, ACCESS_DWK, header.kid)
         } catch (err) {
             return fail(
                 'invalid_presented_token',

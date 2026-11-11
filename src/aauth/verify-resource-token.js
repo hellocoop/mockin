@@ -55,7 +55,7 @@ export async function verifyResourceToken(
 
     let entity
     try {
-        entity = await getEntity(resourceUrl, dwk)
+        entity = await getEntity(resourceUrl, dwk, header.kid)
     } catch (err) {
         return { error: `resource discovery failed: ${err.message}` }
     }

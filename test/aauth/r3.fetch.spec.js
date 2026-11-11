@@ -16,7 +16,7 @@
 // httpsig verifier can resolve the signing key by id+dwk).
 
 import { expect } from 'chai'
-import { verify as httpsigVerify } from '@hellocoop/httpsig'
+import { verify as httpsigVerify, createKeyResolver } from '@hellocoop/httpsig'
 
 import { fetchR3Document } from '../../src/aauth/r3.js'
 import { publicJwk, kid as MOCKIN_KID } from '../../src/aauth/keys.js'
@@ -134,6 +134,8 @@ describe('aauth/r3.fetchR3Document — signed R3 fetch', function () {
         await fetchR3Document({ r3_uri: R3_URI, expected_s256 })
         expect(captured).to.not.be.null
 
+        // The test ISSUER is http://127.0.0.1:3333; httpsig's resolver
+        // refuses a non-HTTPS URL unless told otherwise.
         const url = new URL(R3_URI)
         const verifyResult = await httpsigVerify({
             method: 'GET',
@@ -141,7 +143,7 @@ describe('aauth/r3.fetchR3Document — signed R3 fetch', function () {
             path: url.pathname,
             query: '',
             headers: captured.headers,
-        })
+        }, { keyResolver: createKeyResolver({ requireHttps: false }) })
 
         expect(verifyResult.verified, verifyResult.error).to.equal(true)
         expect(verifyResult.keyType).to.equal('jwks_uri')

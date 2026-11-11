@@ -21,6 +21,7 @@ import { issueAuthToken } from './issue-auth-token.js'
 import { issuePersonToken } from './issue-person-token.js'
 import { issueBootstrapToken } from './bootstrap.js'
 import { verifyAgentToken } from './verify-agent-token.js'
+import { getKeyResolver } from './key-resolver.js'
 import { checkBodySigning } from './verify-request.js'
 import { problem } from './problem.js'
 
@@ -45,7 +46,7 @@ async function runHttpSig(request) {
         query: url.search ? url.search.slice(1) : '',
         headers: request.headers,
         body: hasBody ? (request.rawBody || '') : undefined,
-    })
+    }, { keyResolver: getKeyResolver() })
 }
 
 function noSig(reply) {

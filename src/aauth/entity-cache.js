@@ -1,75 +1,75 @@
-// aauth/entity-cache.js — fetch + cache external metadata and JWKS.
+// aauth/entity-cache.js — external metadata and JWKS.
 //
-// The PS verifies agent_tokens (signed by an agent server) and
-// resource_tokens (signed by a resource server). Both require fetching the
+// The PS verifies agent_tokens (signed by an agent server), resource_tokens
+// (signed by a resource server) and AS-issued auth tokens. Each requires the
 // signer's JWKS via its `.well-known/{dwk}` document.
+//
+// The documents are fetched and cached by the shared key resolver
+// (key-resolver.js): timeout, refetch floor, refresh on an unknown kid and
+// the log of every fetch are its concern.
 //
 // For tests and offline environments the mock config can preload entries
 // into `trusted_servers` so no network call is needed.
 
 import { getConfig } from './mock.js'
-
-const TTL_MS = 5 * 60 * 1000
-const cache = new Map() // key = `${url}::${dwk}` → { metadata, jwks, expires }
+import { getKeyResolver, keyStore } from './key-resolver.js'
 
 export const AGENT_DWK = 'aauth-agent.json'
 export const RESOURCE_DWK = 'aauth-resource.json'
 export const PERSON_DWK = 'aauth-person.json'
 
 export function resetEntityCache() {
-    cache.clear()
+    keyStore.clear()
 }
 
 export function wkUrl(serverUrl, dwk) {
-    return `${serverUrl.replace(/\/$/, '')}/.well-known/${dwk}`
+    return `${baseOf(serverUrl)}/.well-known/${dwk}`
+}
+
+// The identifier as the resolver keys it: no trailing slash, so the metadata
+// URL is the one wkUrl names. draft-hardt-httpbis-signature-key-08: the
+// metadata document must carry an `issuer` byte-equal to it; the resolver
+// checks that (requireIssuer, its default) before it caches the document.
+function baseOf(serverUrl) {
+    return serverUrl.replace(/\/$/, '')
 }
 
 function trustedFor(serverUrl) {
     const trusted = getConfig().trusted_servers || {}
-    return trusted[serverUrl] || trusted[serverUrl.replace(/\/$/, '')] || null
+    return trusted[serverUrl] || trusted[baseOf(serverUrl)] || null
 }
 
-async function loadEntity(serverUrl, dwk) {
+/**
+ * The signer's metadata and JWKS.
+ *
+ * @param {string} serverUrl  the token's `iss`
+ * @param {string} dwk        the metadata document name
+ * @param {string} [kid]      the key the caller is about to look for. When
+ *   the cached JWKS lacks it, the resolver fetches the documents once more
+ *   (key rotation), subject to its refetch floor, and throws when the key
+ *   is still missing.
+ * @returns {Promise<{ metadata: object, jwks: { keys: object[] } }>}
+ */
+export async function getEntity(serverUrl, dwk, kid) {
     const trusted = trustedFor(serverUrl)
     if (trusted?.metadata && trusted?.jwks) {
         return { metadata: trusted.metadata, jwks: trusted.jwks }
     }
 
-    const metaRes = await fetch(wkUrl(serverUrl, dwk))
-    if (!metaRes.ok) {
-        throw new Error(`metadata fetch failed: ${metaRes.status}`)
-    }
-    const metadata = await metaRes.json()
-    // draft-hardt-httpbis-signature-key-08: the metadata document must
-    // carry an issuer byte-equal to the identifier it was fetched under.
-    if (!metadata.issuer) {
-        throw new Error('metadata missing issuer')
-    }
-    if (metadata.issuer !== serverUrl) {
-        throw new Error(
-            `metadata issuer "${metadata.issuer}" does not match "${serverUrl}"`,
-        )
-    }
-    const jwksUri = metadata.jwks_uri
-    if (!jwksUri) throw new Error('metadata missing jwks_uri')
-    const jwksRes = await fetch(jwksUri)
-    if (!jwksRes.ok) throw new Error(`jwks fetch failed: ${jwksRes.status}`)
-    const jwks = await jwksRes.json()
+    const id = baseOf(serverUrl)
+    const resolver = getKeyResolver()
+    if (kid) await resolver.resolveKey({ id, dwk, kid })
+    const lookup = kid ? { kid } : {}
+    const metadata = await resolver.getMetadata(id, dwk, lookup)
+    const jwks = await resolver.getJwks(id, dwk, lookup)
     return { metadata, jwks }
 }
 
-export async function getEntity(serverUrl, dwk) {
-    const key = `${serverUrl}::${dwk}`
-    const now = Date.now()
-    const cached = cache.get(key)
-    if (cached && cached.expires > now) return cached
-    const entity = await loadEntity(serverUrl, dwk)
-    const entry = { ...entity, expires: now + TTL_MS }
-    cache.set(key, entry)
-    return entry
-}
-
 export async function getJWK(serverUrl, dwk, kid) {
+    const trusted = trustedFor(serverUrl)
+    if (!(trusted?.metadata && trusted?.jwks) && kid) {
+        return getKeyResolver().resolveKey({ id: baseOf(serverUrl), dwk, kid })
+    }
     const { jwks } = await getEntity(serverUrl, dwk)
     if (!jwks?.keys || !Array.isArray(jwks.keys)) {
         throw new Error('jwks has no keys array')

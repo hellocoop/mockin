@@ -30,6 +30,7 @@ import { SIGNING_ALG } from './algorithms.js'
 import { directedSub } from './subject.js'
 import { getConfig, mockErrorFor } from './mock.js'
 import { checkBodySigning } from './verify-request.js'
+import { getKeyResolver } from './key-resolver.js'
 import { problem } from './problem.js'
 import { createPending, updatePending } from './state.js'
 
@@ -83,7 +84,7 @@ export const bootstrap = async (req, reply) => {
         query: url.search ? url.search.slice(1) : '',
         headers: req.headers,
         body: req.rawBody || '',
-    })
+    }, { keyResolver: getKeyResolver() })
 
     if (!sigResult.verified) {
         const noSig = !req.headers.signature && !req.headers['signature-input']

@@ -24,6 +24,7 @@ import {
 } from '@hellocoop/httpsig'
 
 import { verifyAgentToken } from './verify-agent-token.js'
+import { getKeyResolver } from './key-resolver.js'
 import { ACCEPTED_JWT_ALGS } from './algorithms.js'
 import { getConfig } from './mock.js'
 import { problemBody, PROBLEM_CONTENT_TYPE } from './problem.js'
@@ -126,7 +127,7 @@ export async function verifyRequest(request) {
         query: url.search ? url.search.slice(1) : '',
         headers: request.headers,
         body: hasBody ? (request.rawBody || '') : undefined,
-    })
+    }, { keyResolver: getKeyResolver() })
 
     if (!sigResult.verified) {
         const noSig =

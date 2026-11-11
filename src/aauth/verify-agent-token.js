@@ -47,7 +47,7 @@ export async function verifyAgentToken(raw, decoded) {
 
     let entity
     try {
-        entity = await getEntity(payload.iss, payload.dwk || AGENT_DWK)
+        entity = await getEntity(payload.iss, payload.dwk || AGENT_DWK, header.kid)
     } catch (err) {
         return { error: `agent server discovery failed: ${err.message}` }
     }
